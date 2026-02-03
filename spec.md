@@ -218,9 +218,31 @@ v1 では、まずは簡易パーサ（区切り行 + YAML 風）で開始し、
 - GitHub Releases に exe を置く
 - v1 は自動更新を必須にしない（将来検討）
 
-### 10.2 exe 化
-- PyInstaller を基本とする
-- 署名や MSIX 化は v1 では必須にしない（必要になったら追加）
+### 10.2 exe 化と配布形式
+
+**Step 1: exe 化**
+- PyInstaller を使用（onefile または onedir）
+
+**Step 2: パッケージ化・署名（推奨）**
+- WinApp CLI (`winget install microsoft.winappcli`) を使用
+- MSIX パッケージ化 + 署名により Windows Defender 誤検知を回避
+- 参考: https://note.com/hantani/n/n0e8bcd0ea4c7
+
+```
+PyInstaller で exe 作成
+    ↓
+winapp init（マニフェスト・証明書生成）
+    ↓
+winapp pack（MSIX パッケージ作成）
+    ↓
+winapp sign（署名）
+    ↓
+GitHub Releases で配布
+```
+
+**v1 方針**
+- まず PyInstaller の exe のみで動作確認
+- 誤検知が問題になったら MSIX 化を導入
 
 ### 10.3 外部依存（Gemini CLI）
 v1 では以下のいずれかを採用する。
