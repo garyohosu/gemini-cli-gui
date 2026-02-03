@@ -143,11 +143,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def _build_ui(self) -> None:
         # メニューバー
         menubar = self.menuBar()
-        menubar.addMenu("ファイル")
-        menubar.addMenu("編集")
-        menubar.addMenu("表示")
-        menubar.addMenu("ウィンドウ")
-        menubar.addMenu("ヘルプ")
+        menubar.addMenu("ファイル(&F)")
+        menubar.addMenu("編集(&E)")
+        menubar.addMenu("表示(&V)")
+        menubar.addMenu("ウィンドウ(&W)")
+        menubar.addMenu("ヘルプ(&H)")
 
         # メインウィジェット
         central = QtWidgets.QWidget()
@@ -220,7 +220,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ws_label = QtWidgets.QLabel("ワークスペース")
         ws_label.setObjectName("SectionLabel")
 
-        self._folder_btn = QtWidgets.QPushButton("フォルダを選択")
+        self._folder_btn = QtWidgets.QPushButton("フォルダを選択(&O)")
         self._folder_btn.setObjectName("PrimaryButton")
         self._folder_btn.clicked.connect(self._on_select_workspace)
 
@@ -240,7 +240,7 @@ class MainWindow(QtWidgets.QMainWindow):
         files_layout.setContentsMargins(0, 0, 0, 0)
         files_layout.setSpacing(8)
 
-        files_label = QtWidgets.QLabel("ファイル一覧")
+        files_label = QtWidgets.QLabel("ファイル一覧(&L)")
         files_label.setObjectName("SectionLabel")
 
         self._file_list = QtWidgets.QListWidget()
@@ -267,10 +267,10 @@ class MainWindow(QtWidgets.QMainWindow):
         output_header_layout = QtWidgets.QHBoxLayout(output_header)
         output_header_layout.setContentsMargins(0, 0, 0, 0)
 
-        output_label = QtWidgets.QLabel("出力")
+        output_label = QtWidgets.QLabel("出力(&U)")
         output_label.setObjectName("SectionLabel")
 
-        clear_btn = QtWidgets.QPushButton("クリア")
+        clear_btn = QtWidgets.QPushButton("クリア(&C)")
         clear_btn.setObjectName("SecondaryButton")
         clear_btn.clicked.connect(self._on_clear_output)
 
@@ -301,13 +301,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._input.setFixedHeight(80)
         self._input.installEventFilter(self)
 
-        self._send_btn = QtWidgets.QPushButton("送信")
+        self._send_btn = QtWidgets.QPushButton("送信(&S)")
         self._send_btn.setObjectName("SendButton")
         self._send_btn.setFixedSize(60, 36)
         self._send_btn.clicked.connect(self._on_send)
         self._send_btn.setEnabled(False)
 
-        self._cancel_btn = QtWidgets.QPushButton("中断")
+        self._cancel_btn = QtWidgets.QPushButton("中断(&C)")
         self._cancel_btn.setObjectName("SecondaryButton")
         self._cancel_btn.setFixedSize(60, 36)
         self._cancel_btn.setEnabled(False)

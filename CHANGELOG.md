@@ -49,8 +49,12 @@
 - Auto-start server on launch, gate Send by health check, and localize menu labels.
 - Fix GUI result polling and update status indicator on request start.
 - Add cancel button and show requestId during responses.
+- Mark M0-4 WorkspaceSandbox verification as complete in spec.md.
+- Record YOLO expectation and risk analysis in result/2026-02-03_task-03.md.
 - Increase default GUI prompt timeout for long responses.
 - Send selected workspace as workingDir in prompt payload.
 - Add log output mode selector (none/error/all) in GUI.
 - Move log mode selection to startup option (--log-mode).
 - Add --help/--? startup options for log mode.
+- Add VBScript SendKeys GUI smoke test script.
+- Add mnemonic accelerators (Alt shortcuts) to menus and buttons.
