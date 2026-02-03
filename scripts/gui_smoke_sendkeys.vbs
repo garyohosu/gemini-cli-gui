@@ -1,4 +1,4 @@
-' Smoke test for Gemini CLI GUI Wrapper via SendKeys
+ï»¿' Smoke test for Gemini CLI GUI Wrapper via SendKeys
 ' Starts the app, activates window, then drives UI.
 
 Option Explicit
@@ -11,14 +11,20 @@ Const TAB_TO_FOLDER_BTN = 2
 Const TAB_TO_INPUT = 6
 Const RETRIES = 10
 
-Dim shell
+Dim shell, fso, logPath, logFile
 Set shell = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+logPath = CreateAbsolutePath("logs\sendkeys.log")
+EnsureFolderExists fso, GetParentFolder(logPath)
+Set logFile = fso.OpenTextFile(logPath, 8, True, -1)
+
+LogLine logFile, "Start"
 
 Dim workspacePath
 workspacePath = "C:\\temp"
 
 Dim promptText
-promptText = "dir‚ðŽÀs‚µ‚Ä‚­‚¾‚³‚¢"
+promptText = "dirã‚’å®Ÿè¡Œã—ã¦ãã ã•ã„"
 
 ' Start app
 shell.Run PY_CMD, 1, False
@@ -26,6 +32,7 @@ WScript.Sleep START_WAIT_MS
 
 Dim pid
 pid = FindAppPid("python.exe", "app.py")
+LogLine logFile, "PID=" & pid
 
 Dim activated
 activated = False
@@ -39,7 +46,8 @@ If Not activated Then
 End If
 
 If Not activated Then
-  WScript.Echo "Failed to activate window by PID or title: " & APP_TITLE
+  LogLine logFile, "Failed to activate window: " & APP_TITLE
+  WScript.Echo "Failed to activate window: " & APP_TITLE
   WScript.Quit 1
 End If
 
@@ -60,7 +68,16 @@ SendTabs shell, TAB_TO_INPUT
 shell.SendKeys promptText
 shell.SendKeys "^({ENTER})"
 
+LogLine logFile, "Finished"
 WScript.Echo "SendKeys smoke test finished."
+
+Sub SendTabs(s, count)
+  Dim i
+  For i = 1 To count
+    s.SendKeys "{TAB}"
+    WScript.Sleep 150
+  Next
+End Sub
 
 Function FindAppPid(procName, keyword)
   Dim wmi, items, item
@@ -83,6 +100,7 @@ Function TryActivatePid(pid)
   For i = 1 To RETRIES
     If shell.AppActivate(CLng(pid)) Then
       TryActivatePid = True
+      LogLine logFile, "Activated by PID"
       Exit Function
     End If
     WScript.Sleep 200
@@ -95,16 +113,36 @@ Function TryActivateTitle(title)
   For i = 1 To RETRIES
     If shell.AppActivate(title) Then
       TryActivateTitle = True
+      LogLine logFile, "Activated by title"
       Exit Function
     End If
     WScript.Sleep 200
   Next
 End Function
 
-Sub SendTabs(s, count)
+Sub EnsureFolderExists(fs, path)
+  If Not fs.FolderExists(path) Then
+    fs.CreateFolder(path)
+  End If
+End Sub
+
+Function GetParentFolder(path)
   Dim i
-  For i = 1 To count
-    s.SendKeys "{TAB}"
-    WScript.Sleep 150
-  Next
+  i = InStrRev(path, "\")
+  If i > 0 Then
+    GetParentFolder = Left(path, i - 1)
+  Else
+    GetParentFolder = "."
+  End If
+End Function
+
+Function CreateAbsolutePath(relPath)
+  Dim fs, base
+  Set fs = CreateObject("Scripting.FileSystemObject")
+  base = fs.GetAbsolutePathName(".")
+  CreateAbsolutePath = fs.BuildPath(base, relPath)
+End Function
+
+Sub LogLine(f, msg)
+  f.WriteLine Now & " " & msg
 End Sub

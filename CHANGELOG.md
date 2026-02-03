@@ -61,3 +61,4 @@
 - Add SendKeys smoke test script for GUI automation.
 - Improve SendKeys smoke test with PID-based AppActivate retry.
 - Start app inside SendKeys smoke test script.
+- Add logging and UTF-8 encoding to SendKeys smoke test script.
