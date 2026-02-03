@@ -305,7 +305,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self._send_btn.clicked.connect(self._on_send)
         self._send_btn.setEnabled(False)
 
+        self._cancel_btn = QtWidgets.QPushButton("中断")
+        self._cancel_btn.setObjectName("SecondaryButton")
+        self._cancel_btn.setFixedSize(60, 36)
+        self._cancel_btn.setEnabled(False)
+        self._cancel_btn.clicked.connect(self._on_cancel)
+
         input_layout.addWidget(self._input, stretch=1)
+        input_layout.addWidget(self._cancel_btn, alignment=QtCore.Qt.AlignBottom)
         input_layout.addWidget(self._send_btn, alignment=QtCore.Qt.AlignBottom)
 
         layout.addWidget(input_container)
@@ -571,9 +578,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._append_output(prompt, "user")
         self._input.clear()
         self._send_btn.setEnabled(False)
+        self._cancel_btn.setEnabled(True)
         self._update_status("実行中", True)
         self._current_request_id = None
-        self._client.send_prompt(prompt, timeout_ms=120000)
+        self._client.send_prompt(prompt, timeout_ms=300000)
 
     def _on_response(self, response: PromptResponse) -> None:
         payload = response.payload
@@ -583,18 +591,20 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._append_output(text, "system")
         self._update_send_state()
+        self._cancel_btn.setEnabled(False)
         self._update_status("停止中", False)
         self._current_request_id = None
         self._load_operations(payload)
 
     def _on_started(self, request_id: str) -> None:
         self._current_request_id = request_id
-        self._append_output("Gemini が応答中です...", "system")
+        self._append_output(f"Gemini が応答中です... (requestId={request_id})", "system")
         self._update_status("実行中", True)
 
     def _on_error(self, message: str) -> None:
         self._append_output(f"エラー: {message}", "error")
         self._update_send_state()
+        self._cancel_btn.setEnabled(False)
         self._update_status("停止中", False)
         logging.getLogger(__name__).error("GUI error: %s", message)
 
@@ -677,6 +687,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def _update_send_state(self) -> None:
         ready = self._server_ready and self._workspace_root is not None
         self._send_btn.setEnabled(ready)
+
+    def _on_cancel(self) -> None:
+        if not self._current_request_id:
+            self._append_output("中断する処理がありません", "info")
+            return
+        self._append_output("処理を中断します...", "system")
+        self._client.cancel(self._current_request_id)
+        self._cancel_btn.setEnabled(False)
 
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
         if obj == self._input and event.type() == QtCore.QEvent.KeyPress:

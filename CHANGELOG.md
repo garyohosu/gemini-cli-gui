@@ -48,3 +48,5 @@
 - Redesign GUI to match image.png layout: sidebar + main area, Japanese UI, no CLI control buttons.
 - Auto-start server on launch, gate Send by health check, and localize menu labels.
 - Fix GUI result polling and update status indicator on request start.
+- Add cancel button and show requestId during responses.
+- Increase default GUI prompt timeout for long responses.
