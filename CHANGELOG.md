@@ -58,3 +58,6 @@
 - Add --help/--? startup options for log mode.
 - Add VBScript SendKeys GUI smoke test script.
 - Add mnemonic accelerators (Alt shortcuts) to menus and buttons.
+- Add SendKeys smoke test script for GUI automation.
+- Improve SendKeys smoke test with PID-based AppActivate retry.
+- Start app inside SendKeys smoke test script.
