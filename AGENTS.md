@@ -7,3 +7,4 @@
 - Output execution results as Markdown files in the `result` folder.
 - Append any additional rules to this file as they arise.
 - `instructions/` and `result/` are used to share information between chat AI and CLI agents via GitHub.
+- Read `handoff.md` before continuing work on this repository.

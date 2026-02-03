@@ -64,3 +64,4 @@
 - Add logging and UTF-8 encoding to SendKeys smoke test script.
 - Fix SendKeys script encoding to avoid VBScript invalid character errors.
 - Rename SendKeys smoke test to scripts/smoke.vbs and update handoff.
+- Require reading handoff.md before continuing work.
