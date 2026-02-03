@@ -334,5 +334,6 @@ A. v1 では安全のため非対応。別のワークスペースとして開�
   - 対策: 起動時診断とセットアップガイド
 
 ## 付録A: 参考
-- Gemini CLI 公式リポジトリ/ドキュメント
-- PyInstaller ドキュメント
+- Gemini CLI 公式リポジトリ: https://github.com/google-gemini/gemini-cli
+- PyInstaller ドキュメント: https://pyinstaller.org/
+- Python exe化・安全な配布方法: https://note.com/hantani/n/n0e8bcd0ea4c7
