@@ -132,3 +132,23 @@ gemini --list-sessions
 - ユーザーはGoogle AI Plus課金ユーザーだが、ツールは無課金ユーザー向け
 - APIキーを要求しない設計にする
 - Node.jsプロセスが残る場合は `taskkill /F /IM node.exe` で停止
+
+## 2026-02-03 Update (Codex CLI)
+- `AGENTS.md` updated with repository rules:
+  - Append changes to `CHANGELOG.md`
+  - Save instructions in `instructions/` and results in `result/`
+  - Append new rules to `AGENTS.md`
+  - `instructions/` and `result/` are for chat AI / CLI sharing
+- Added `CHANGELOG.md`
+- Added `CLAUDE.md` and `GEMINI.md` (read `AGENTS.md`)
+- Created `instructions/` and `result/` folders
+- Updated `server/gemini_server.js`:
+  - Restrict `workingDir` to `GEMINI_WORKSPACE_ROOT` (reject out-of-root/nonexistent with 400)
+  - Force `-y` (`-yolo`) on `/prompt`
+- Added `scripts/measure_server.ps1` to measure startup + /health + /prompt
+- Runtime measurement blocked by policy in this environment (single `node -v` works)
+
+## Next Actions
+1. Run `scripts/measure_server.ps1` locally and share timings
+2. Switch `/prompt` to use `gemini-cli-core` API (remove subprocess)
+3. Relax hardcoded core path via env or discovery

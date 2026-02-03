@@ -1,0 +1,47 @@
+# Changelog
+
+## 2026-02-03
+- Add agent guidance files and direct tools to `AGENTS.md`.
+- Update `AGENTS.md` to define instruction/result output locations.
+- Update `AGENTS.md` to require appending future rules here.
+- Add task instruction file for technical verification (latency focus).
+- Note `instructions/` and `result/` are for AI/CLI sharing via GitHub.
+- Add task instruction file to clarify `-yolo` expectation and next-step order.
+- Enforce workspace root for Gemini CLI execution and add `-yolo` flag.
+- Add `scripts/measure_server.ps1` to measure server startup and prompt latency.
+- Append Codex CLI handoff update summary to `handoff.md`.
+- Add spec review instruction and result artifacts.
+- Update spec review result with readable UTF-8 review and findings.
+- Clarify workspace-only access restriction in spec.
+- Make gemini-cli-core optional with path discovery and coreAvailable status reporting.
+- Capture measure_server.ps1 results (timeout; health OK, prompt failed).
+- Make measure_server.ps1 configurable and more reliable with timeouts and cleanup.
+- Fix measure_server.ps1 param placement and rerun measurement (prompt still failing).
+- Diagnose /prompt failure and quote prompts to avoid positional-arg conflict.
+- Make measure_server.ps1 run from any directory and capture new timing output.
+- Make measure_server.ps1 persist results to result/ automatically.
+- Fix measure_server.ps1 parse error caused by backticks in a double-quoted string.
+- Add WorkspaceSandbox implementation and verification script with results.
+- Add reparse point verification script and record WorkspaceSandbox denial results.
+- Add WorkspaceSandbox unit tests and record unittest results.
+- Add long-running verification script and capture timeout/cancel results.
+- Add /prompt timeout handling, request IDs, and /cancel endpoint.
+- Update long-running verification script to use /cancel when possible.
+- Ensure /cancel records a completed result for /prompt/result.
+- Reflect long-running timeout/cancel and async prompt workflow in spec.
+- Add strict operations parser with unit tests.
+- Add audit logging and operation executor stubs with tests.
+- Add minimal PySide6 GUI skeleton (app.py).
+- Wire GUI to async prompt flow with cancel support.
+- Add operations approval UI with preview table in GUI.
+- Wire approval action to OperationExecutor with audit logging.
+- Implement real operation execution (read/write/move/copy/mkdir/delete/zip/unzip) with tests.
+- Enhance GUI approval to show execution results and add debug logging.
+- Show per-operation error/detail columns in GUI.
+- Add risk highlighting for dangerous ops and error summarization in GUI.
+- Add confirmation dialog for dangerous operations before execution.
+- Add GUI log viewer panel for gui/audit logs.
+- Fix missing Path import in app.py after log viewer addition.
+- Refresh GUI layout with styled sections and header.
+- Revise GUI into beginner-friendly tabs with workspace selector and guide.
+- Fix workspace initialization ordering for new GUI tabs.
