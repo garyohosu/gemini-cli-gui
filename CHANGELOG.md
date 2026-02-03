@@ -46,3 +46,5 @@
 - Revise GUI into beginner-friendly tabs with workspace selector and guide.
 - Fix workspace initialization ordering for new GUI tabs.
 - Redesign GUI to match image.png layout: sidebar + main area, Japanese UI, no CLI control buttons.
+- Auto-start server on launch, gate Send by health check, and localize menu labels.
+- Fix GUI result polling and update status indicator on request start.

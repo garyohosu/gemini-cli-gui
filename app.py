@@ -3,8 +3,10 @@ from __future__ import annotations
 import json
 import logging
 from logging.handlers import RotatingFileHandler
+import subprocess
 import sys
 import threading
+import time
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
@@ -67,18 +69,34 @@ class GeminiClient(QtCore.QObject):
                     raise RuntimeError("requestId not returned")
                 self.started.emit(request_id)
 
+            result = self._poll_result(request_id, timeout_ms)
+            response = PromptResponse(request_id=result.get("requestId"), payload=result)
+            self.response_ready.emit(response)
+        except Exception as exc:
+            self.error.emit(str(exc))
+
+    def _poll_result(self, request_id: str, timeout_ms: int) -> dict:
+        deadline = time.monotonic() + (timeout_ms / 1000)
+        while time.monotonic() < deadline:
             result_req = urllib.request.Request(
                 f"{self._base_url}/prompt/result?requestId={request_id}",
                 headers={"Content-Type": "application/json"},
                 method="GET",
             )
-            with urllib.request.urlopen(result_req, timeout=timeout_ms / 1000) as resp:
-                raw = resp.read().decode("utf-8")
-                payload_json = json.loads(raw)
-                response = PromptResponse(request_id=payload_json.get("requestId"), payload=payload_json)
-                self.response_ready.emit(response)
-        except Exception as exc:
-            self.error.emit(str(exc))
+            try:
+                with urllib.request.urlopen(result_req, timeout=5) as resp:
+                    raw = resp.read().decode("utf-8")
+                    payload_json = json.loads(raw)
+                    if resp.status == 202:
+                        time.sleep(0.5)
+                        continue
+                    return payload_json
+            except urllib.error.HTTPError as exc:
+                if exc.code == 202:
+                    time.sleep(0.5)
+                    continue
+                raise
+        raise TimeoutError("Result polling timed out")
 
     def cancel(self, request_id: str) -> None:
         payload = json.dumps({"requestId": request_id}).encode("utf-8")
@@ -113,18 +131,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self._executor: Optional[OperationExecutor] = None
         self._pending_operations = []
         self._current_request_id: Optional[str] = None
+        self._server_process: Optional[subprocess.Popen[str]] = None
+        self._server_ready = False
 
         self._build_ui()
         self._apply_style()
+        self._start_server()
 
     def _build_ui(self) -> None:
         # メニューバー
         menubar = self.menuBar()
-        file_menu = menubar.addMenu("File")
-        edit_menu = menubar.addMenu("Edit")
-        view_menu = menubar.addMenu("View")
-        window_menu = menubar.addMenu("Window")
-        help_menu = menubar.addMenu("Help")
+        menubar.addMenu("ファイル")
+        menubar.addMenu("編集")
+        menubar.addMenu("表示")
+        menubar.addMenu("ウィンドウ")
+        menubar.addMenu("ヘルプ")
 
         # メインウィジェット
         central = QtWidgets.QWidget()
@@ -282,6 +303,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._send_btn.setObjectName("SendButton")
         self._send_btn.setFixedSize(60, 36)
         self._send_btn.clicked.connect(self._on_send)
+        self._send_btn.setEnabled(False)
 
         input_layout.addWidget(self._input, stretch=1)
         input_layout.addWidget(self._send_btn, alignment=QtCore.Qt.AlignBottom)
@@ -506,6 +528,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._append_output(f"ワークスペースを設定しました: {directory}", "system")
         self._refresh_file_list()
+        self._update_send_state()
 
     def _refresh_file_list(self) -> None:
         self._file_list.clear()
@@ -559,18 +582,19 @@ class MainWindow(QtWidgets.QMainWindow):
             text = json.dumps(payload, ensure_ascii=False, indent=2)
 
         self._append_output(text, "system")
-        self._send_btn.setEnabled(True)
+        self._update_send_state()
         self._update_status("停止中", False)
         self._current_request_id = None
         self._load_operations(payload)
 
     def _on_started(self, request_id: str) -> None:
         self._current_request_id = request_id
-        self._append_output(f"ipc:gemini:status", "system")
+        self._append_output("Gemini が応答中です...", "system")
+        self._update_status("実行中", True)
 
     def _on_error(self, message: str) -> None:
         self._append_output(f"エラー: {message}", "error")
-        self._send_btn.setEnabled(True)
+        self._update_send_state()
         self._update_status("停止中", False)
         logging.getLogger(__name__).error("GUI error: %s", message)
 
@@ -613,6 +637,46 @@ class MainWindow(QtWidgets.QMainWindow):
         root = logging.getLogger()
         root.setLevel(logging.DEBUG)
         root.addHandler(handler)
+
+    def _start_server(self) -> None:
+        if self._server_process and self._server_process.poll() is None:
+            return
+        try:
+            self._append_output("Gemini サーバーを起動しています...", "system")
+            self._server_process = subprocess.Popen(
+                ["node", "server/gemini_server.js"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+            self._poll_server_ready()
+        except Exception as exc:
+            self._append_output(f"サーバー起動エラー: {exc}", "error")
+
+    def _poll_server_ready(self) -> None:
+        def _check() -> None:
+            try:
+                req = urllib.request.Request(
+                    "http://127.0.0.1:9876/health",
+                    headers={"Content-Type": "application/json"},
+                    method="GET",
+                )
+                with urllib.request.urlopen(req, timeout=1) as resp:
+                    if resp.status == 200:
+                        self._server_ready = True
+                        self._append_output("サーバー準備完了", "system")
+                        self._update_send_state()
+                        self._update_status("待機中", True)
+                        return
+            except Exception:
+                pass
+            QtCore.QTimer.singleShot(500, _check)
+
+        QtCore.QTimer.singleShot(500, _check)
+
+    def _update_send_state(self) -> None:
+        ready = self._server_ready and self._workspace_root is not None
+        self._send_btn.setEnabled(ready)
 
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
         if obj == self._input and event.type() == QtCore.QEvent.KeyPress:
