@@ -45,3 +45,4 @@
 - Refresh GUI layout with styled sections and header.
 - Revise GUI into beginner-friendly tabs with workspace selector and guide.
 - Fix workspace initialization ordering for new GUI tabs.
+- Redesign GUI to match image.png layout: sidebar + main area, Japanese UI, no CLI control buttons.
