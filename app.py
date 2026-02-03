@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -115,12 +116,12 @@ class GeminiClient(QtCore.QObject):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, log_mode: str) -> None:
         super().__init__()
         self.setWindowTitle("Gemini CLI GUI Wrapper")
         self.resize(1000, 700)
 
-        self._setup_logging()
+        self._setup_logging(log_mode)
         self._client = GeminiClient("http://127.0.0.1:9876")
         self._client.response_ready.connect(self._on_response)
         self._client.started.connect(self._on_started)
@@ -232,25 +233,6 @@ class MainWindow(QtWidgets.QMainWindow):
         ws_layout.addWidget(self._workspace_label)
 
         layout.addWidget(ws_section)
-
-        # ログ出力モード
-        log_section = QtWidgets.QWidget()
-        log_layout = QtWidgets.QVBoxLayout(log_section)
-        log_layout.setContentsMargins(0, 0, 0, 0)
-        log_layout.setSpacing(8)
-
-        log_label = QtWidgets.QLabel("ログ出力")
-        log_label.setObjectName("SectionLabel")
-
-        self._log_mode = QtWidgets.QComboBox()
-        self._log_mode.addItems(["ログ無し", "異常時のみログ", "正常時もログ"])
-        self._log_mode.currentIndexChanged.connect(self._on_log_mode_changed)
-        self._log_mode.setCurrentIndex(1)
-
-        log_layout.addWidget(log_label)
-        log_layout.addWidget(self._log_mode)
-
-        layout.addWidget(log_section)
 
         # ファイル一覧セクション
         files_section = QtWidgets.QWidget()
@@ -658,7 +640,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 return None
         return None
 
-    def _setup_logging(self) -> None:
+    def _setup_logging(self, log_mode: str) -> None:
         logs_dir = Path.cwd() / "logs"
         logs_dir.mkdir(parents=True, exist_ok=True)
         log_path = logs_dir / "gui.log"
@@ -668,20 +650,20 @@ class MainWindow(QtWidgets.QMainWindow):
         root = logging.getLogger()
         root.setLevel(logging.DEBUG)
         root.addHandler(self._log_handler)
-        self._set_log_level(logging.ERROR)
-
-    def _on_log_mode_changed(self, index: int) -> None:
-        if index == 0:
-            self._set_log_level(logging.CRITICAL + 1)
-        elif index == 1:
-            self._set_log_level(logging.ERROR)
-        else:
-            self._set_log_level(logging.DEBUG)
-        self._append_output(f"ログ出力設定: {self._log_mode.currentText()}", "system")
+        self._apply_log_mode(log_mode)
 
     def _set_log_level(self, level: int) -> None:
         if hasattr(self, "_log_handler"):
             self._log_handler.setLevel(level)
+
+    def _apply_log_mode(self, log_mode: str) -> None:
+        mode = (log_mode or "error").lower()
+        if mode == "none":
+            self._set_log_level(logging.CRITICAL + 1)
+        elif mode == "all":
+            self._set_log_level(logging.DEBUG)
+        else:
+            self._set_log_level(logging.ERROR)
 
     def _start_server(self) -> None:
         if self._server_process and self._server_process.poll() is None:
@@ -741,9 +723,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--log-mode", choices=["none", "error", "all"], default="error")
+    parser.add_argument("--help", action="store_true")
+    parser.add_argument("--?", dest="help_alias", action="store_true")
+    args, _ = parser.parse_known_args()
+
+    if args.help or args.help_alias:
+        print("Usage: py app.py [--log-mode none|error|all] [--help|--?]")
+        return
+
     app = QtWidgets.QApplication(sys.argv)
     app.setFont(QtGui.QFont("Yu Gothic UI", 9))
-    window = MainWindow()
+    window = MainWindow(log_mode=args.log_mode)
     window.show()
     sys.exit(app.exec())
 

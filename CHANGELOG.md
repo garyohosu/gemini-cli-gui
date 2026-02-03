@@ -52,3 +52,5 @@
 - Increase default GUI prompt timeout for long responses.
 - Send selected workspace as workingDir in prompt payload.
 - Add log output mode selector (none/error/all) in GUI.
+- Move log mode selection to startup option (--log-mode).
+- Add --help/--? startup options for log mode.
