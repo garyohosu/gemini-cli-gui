@@ -1,31 +1,61 @@
 # gemini-cli-gui
 
-Unofficial GUI wrapper for Gemini CLI on Windows.
+Unofficial GUI wrapper for [Gemini CLI](https://github.com/google-gemini/gemini-cli) on Windows.
 
 ## What this is
-A Windows desktop app that lets you use Gemini CLI through a chat-style UI, with safety controls:
-- Work only inside a selected workspace folder
-- Show a preview before applying changes
-- Require approval for destructive operations
 
-This project is an AI-assisted software development experiment.
+**無料で使える AI コーディングアシスタントを、コマンドラインなしで。**
+
+Gemini CLI を GUI で操作できる Windows デスクトップアプリです。[Claude Cowork](https://github.com/anthropics/claude-code) のようなエージェント型 AI ツールを、CLI が苦手な人でも使えるようにすることを目指しています。
+
+特徴:
+- **無料** - Gemini CLI の無料枠を活用（Google アカウントがあれば OK）
+- **GUI** - コマンドラインを使わずにチャット形式で操作
+- **安全** - ワークスペース外へのアクセスをブロック、変更前にプレビュー表示
+
+このプロジェクトは AI 併用開発の実験でもあります。
+
+## Status
+
+**開発初期段階（技術検証中）**
+
+Gemini CLI との連携方法を検証しています。過去の試行で課題があったため、慎重に進めています。
 
 ## Requirements (end users)
 - Windows 10/11 (64-bit)
-- Gemini CLI available on PATH
-  - You will need Node.js and Gemini CLI installed
-- Internet connection (Gemini communication)
+- [Node.js](https://nodejs.org/) (v18+)
+- [Gemini CLI](https://github.com/google-gemini/gemini-cli) (`npm install -g @anthropic-ai/gemini-cli`)
+- Google アカウント（Gemini の認証用）
+- インターネット接続
 
 ## Usage
-1. Download the latest exe from GitHub Releases
-2. Launch the app
-3. Select a workspace folder
-4. Type your request in the chat
-5. Review the preview and approve the changes
+1. GitHub Releases から exe をダウンロード
+2. アプリを起動
+3. ワークスペースフォルダを選択
+4. チャットで依頼を入力
+5. プレビューを確認して承認
 
 ## Development
-- Python (recommended 3.11+)
-- GUI: PySide6 (or Tkinter)
+
+### Prerequisites
+- Python 3.11+
+- Git
+
+### Setup
+```bash
+git clone https://github.com/garyohosu/gemini-cli-gui.git
+cd gemini-cli-gui
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt  # TODO: 作成予定
+```
+
+### Tech Stack
+- GUI: PySide6
+- Build: PyInstaller
 
 ## Documentation
-- spec.md: technical specification and security requirements
+- [spec.md](spec.md) - 技術仕様・セキュリティ要件
+
+## License
+MIT License (予定)
