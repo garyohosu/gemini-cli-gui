@@ -50,3 +50,5 @@
 - Fix GUI result polling and update status indicator on request start.
 - Add cancel button and show requestId during responses.
 - Increase default GUI prompt timeout for long responses.
+- Send selected workspace as workingDir in prompt payload.
+- Add log output mode selector (none/error/all) in GUI.
