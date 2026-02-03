@@ -152,3 +152,20 @@ gemini --list-sessions
 1. Run `scripts/measure_server.ps1` locally and share timings
 2. Switch `/prompt` to use `gemini-cli-core` API (remove subprocess)
 3. Relax hardcoded core path via env or discovery
+# Handoff Update (2026-02-03)
+
+## Summary
+- GUI now auto-starts the Gemini server and gates Send by health/workspace readiness.
+- GUI uses async `/prompt/start` + `/prompt/result` polling with cancel support.
+- Added operations preview + approval flow with real file execution + audit logging.
+- Added SendKeys smoke test script (renamed to `scripts/smoke.vbs`, UTF-8 no BOM).
+
+## Key Commands
+- Run app: `py app.py`
+- Log mode: `py app.py --log-mode none|error|all` (`--help` or `--?`)
+- SendKeys smoke test: `cscript //nologo scripts\smoke.vbs`
+
+## Notes
+- SendKeys script requires interactive desktop session; may not work in non-interactive contexts.
+- `logs/sendkeys.log` records smoke test steps.
+

@@ -1,6 +1,3 @@
-﻿' Smoke test for Gemini CLI GUI Wrapper via SendKeys
-' Starts the app, activates window, then drives UI.
-
 Option Explicit
 
 Const APP_TITLE = "Gemini CLI GUI Wrapper"
@@ -14,7 +11,7 @@ Const RETRIES = 10
 Dim shell, fso, logPath, logFile
 Set shell = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
-logPath = CreateAbsolutePath("logs\sendkeys.log")
+logPath = CreateAbsolutePath("logs\\sendkeys.log")
 EnsureFolderExists fso, GetParentFolder(logPath)
 Set logFile = fso.OpenTextFile(logPath, 8, True, -1)
 
@@ -24,9 +21,8 @@ Dim workspacePath
 workspacePath = "C:\\temp"
 
 Dim promptText
-promptText = "dirを実行してください"
+promptText = "list files"
 
-' Start app
 shell.Run PY_CMD, 1, False
 WScript.Sleep START_WAIT_MS
 
@@ -53,17 +49,14 @@ End If
 
 WScript.Sleep WAIT_MS
 
-' Focus folder button
 SendTabs shell, TAB_TO_FOLDER_BTN
 shell.SendKeys "{ENTER}"
 WScript.Sleep WAIT_MS
 
-' Input workspace path in dialog
 shell.SendKeys workspacePath
 shell.SendKeys "{ENTER}"
 WScript.Sleep WAIT_MS
 
-' Focus input area
 SendTabs shell, TAB_TO_INPUT
 shell.SendKeys promptText
 shell.SendKeys "^({ENTER})"
@@ -82,7 +75,7 @@ End Sub
 Function FindAppPid(procName, keyword)
   Dim wmi, items, item
   FindAppPid = 0
-  Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+  Set wmi = GetObject("winmgmts:\\.\root\\cimv2")
   Set items = wmi.ExecQuery("SELECT ProcessId, CommandLine FROM Win32_Process WHERE Name='" & procName & "'")
   For Each item In items
     If Not IsNull(item.CommandLine) Then
@@ -128,7 +121,7 @@ End Sub
 
 Function GetParentFolder(path)
   Dim i
-  i = InStrRev(path, "\")
+  i = InStrRev(path, "\\")
   If i > 0 Then
     GetParentFolder = Left(path, i - 1)
   Else
