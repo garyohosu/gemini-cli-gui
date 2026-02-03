@@ -269,20 +269,22 @@ v1 では以下のいずれかを採用する。
 - Python 版では exe 化して配布し、ユーザーに Python 環境構築を要求しない
 
 #### M0-1: Gemini CLI 基本動作確認
-- [ ] Gemini CLI のインストール・認証フローを手動で確認
-- [ ] `gemini` コマンドの基本的な使い方を調査
-- [ ] 無料枠の制限（リクエスト数、レート制限）を確認
+- [x] Gemini CLI のインストール・認証フローを手動で確認（v0.26.0）
+- [x] `gemini` コマンドの基本的な使い方を調査
+- [x] 無料枠の制限（リクエスト数、レート制限）を確認 → 429エラーあり、自動リトライ対応
 
 #### M0-2: subprocess 連携
-- [ ] Python から subprocess で Gemini CLI を起動できるか
-- [ ] stdin/stdout の取得方法（パイプ、疑似 TTY）
+- [x] Python から subprocess で Gemini CLI を起動できるか → 可能（約3.5秒で応答）
+- [x] stdin/stdout の取得方法（パイプ、疑似 TTY）→ `-o json` で構造化出力
 - [ ] 初回起動の遅延（ウォームアップ）の計測
 - [ ] 長時間実行時の挙動（タイムアウト、中断）
 
 #### M0-3: 出力フォーマット調査
-- [ ] Gemini CLI がどのような形式で出力を返すか
-- [ ] 機械可読な形式（JSON 等）で出力させる方法があるか
-- [ ] 出力のパース可能性を検証
+- [x] Gemini CLI がどのような形式で出力を返すか → JSON / NDJSON
+- [x] 機械可読な形式（JSON 等）で出力させる方法があるか → `-o json` / `-o stream-json`
+- [x] 出力のパース可能性を検証 → 容易（CodexGUIと同様のアプローチ可能）
+
+**検証結果**: [docs/M0_verification.md](docs/M0_verification.md) 参照
 
 #### M0-4: WorkspaceSandbox
 - [ ] パス正規化のユニットテスト
@@ -357,5 +359,6 @@ A. v1 では安全のため非対応。別のワークスペースとして開�
 
 ## 付録A: 参考
 - Gemini CLI 公式リポジトリ: https://github.com/google-gemini/gemini-cli
+- CodexGUI（実装参考）: https://github.com/garyohosu/CodexGUI
 - PyInstaller ドキュメント: https://pyinstaller.org/
 - Python exe化・安全な配布方法: https://note.com/hantani/n/n0e8bcd0ea4c7
