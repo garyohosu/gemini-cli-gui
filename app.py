@@ -592,6 +592,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if not text:
             text = json.dumps(payload, ensure_ascii=False, indent=2)
 
+        preview = text.replace("\n", " ")[:200]
+        logging.getLogger(__name__).info(
+            "Prompt response received: requestId=%s success=%s text=%s",
+            response.request_id,
+            payload.get("success"),
+            preview,
+        )
         self._append_output(text, "system")
         self._update_send_state()
         self._cancel_btn.setEnabled(False)
@@ -601,6 +608,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_started(self, request_id: str) -> None:
         self._current_request_id = request_id
+        logging.getLogger(__name__).info("Prompt started: requestId=%s", request_id)
         self._append_output(f"Gemini が応答中です... (requestId={request_id})", "system")
         self._update_status("実行中", True)
 

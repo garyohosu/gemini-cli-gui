@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-02-04
+- Add continuation task instruction and discovery result.
+- Run SendKeys smoke test and record WMI error output.
+- Stabilize `scripts/smoke.vbs` by removing WMI PID lookup and adding title-wait timeout logging.
+- Verify basic `/prompt/start` -> `/prompt/result` chat roundtrip and record latency.
+
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
 - Update `AGENTS.md` to define instruction/result output locations.
