@@ -18,17 +18,8 @@ let coreAvailable = false;
 const inFlight = new Map();
 const completed = new Map();
 
-const WORKSPACE_ROOT = path.resolve(process.env.GEMINI_WORKSPACE_ROOT || process.cwd());
-
 function resolveWorkingDir(requestedDir) {
-  const resolved = path.resolve(requestedDir || WORKSPACE_ROOT);
-  const rel = path.relative(WORKSPACE_ROOT, resolved);
-  const isInside =
-    rel && !rel.startsWith('..') && !path.isAbsolute(rel);
-
-  if (!isInside && resolved !== WORKSPACE_ROOT) {
-    return null;
-  }
+  const resolved = path.resolve(requestedDir || process.cwd());
 
   if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
     return null;

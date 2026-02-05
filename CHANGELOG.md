@@ -3,6 +3,7 @@
 ## 2026-02-05
 - Tag v0.1.0 - Initial release with GUI, Gemini CLI integration, workspace sandbox, and approval workflow.
 - Document workspace validation bug (HTTP 400) in instructions/2026-02-05-workspace-validation-bug.md.
+- Fix HTTP 400 error when selecting workspace different from server CWD (#14).
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
