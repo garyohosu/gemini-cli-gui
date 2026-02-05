@@ -5,7 +5,7 @@
 - Document workspace validation bug (HTTP 400) in instructions/2026-02-05-workspace-validation-bug.md.
 - Fix HTTP 400 error when selecting workspace different from server CWD (#14).
 - Add Exit menu item to File menu (#16).
-- Implement persistent Gemini CLI process using pywinpty for faster responses (#17).
+- Revert pywinpty approach due to output capture issues; keep Node.js server method.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
