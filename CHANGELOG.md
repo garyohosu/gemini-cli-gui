@@ -5,7 +5,10 @@
 - Document workspace validation bug (HTTP 400) in instructions/2026-02-05-workspace-validation-bug.md.
 - Fix HTTP 400 error when selecting workspace different from server CWD (#14).
 - Add Exit menu item to File menu (#16).
-- Revert pywinpty approach due to output capture issues; keep Node.js server method.
+- Implement persistent Gemini CLI process using pywinpty for faster responses (#17).
+- Document ANSI escape sequences bug in GeminiRunner output in instructions/2026-02-05-ansi-escape-bug.md.
+- Enhance ANSI stripping in GeminiRunner to handle more UI patterns (#19).
+- Fix ANSI escape sequences bug with comprehensive stripping in GeminiRunner (#19).
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
