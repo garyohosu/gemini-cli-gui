@@ -4,11 +4,9 @@ import argparse
 import json
 import logging
 from logging.handlers import RotatingFileHandler
-import subprocess
 import sys
 import threading
-import time
-import urllib.request
+import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,6 +15,7 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from core.audit_log import AuditLog
+from core.gemini_runner import GeminiRunner, GeminiResponse
 from core.operation_executor import OperationExecutor
 from core.operations_parser import OperationParseError, parse_operations
 from core.workspace_sandbox import WorkspaceSandbox
@@ -32,87 +31,76 @@ class PromptResponse:
 
 
 class GeminiClient(QtCore.QObject):
+    """Client for communicating with Gemini CLI via persistent process."""
     response_ready = QtCore.Signal(object)
     started = QtCore.Signal(str)
     error = QtCore.Signal(str)
+    output_received = QtCore.Signal(str)
 
-    def __init__(self, base_url: str) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._base_url = base_url.rstrip("/")
+        self._runner: Optional[GeminiRunner] = None
+        self._current_thread: Optional[threading.Thread] = None
+        self._cancelled = False
+
+    def set_runner(self, runner: GeminiRunner) -> None:
+        """Set the GeminiRunner instance."""
+        self._runner = runner
 
     def send_prompt(self, prompt: str, timeout_ms: int, working_dir: Optional[str]) -> None:
-        thread = threading.Thread(
+        """Send a prompt asynchronously."""
+        self._cancelled = False
+        self._current_thread = threading.Thread(
             target=self._send_blocking,
-            args=(prompt, timeout_ms, working_dir),
+            args=(prompt, timeout_ms),
             daemon=True,
         )
-        thread.start()
+        self._current_thread.start()
 
-    def _send_blocking(self, prompt: str, timeout_ms: int, working_dir: Optional[str]) -> None:
-        payload = json.dumps(
-            {
-                "prompt": prompt,
-                "timeoutMs": timeout_ms,
-                "workingDir": working_dir,
-            }
-        ).encode("utf-8")
-        start_req = urllib.request.Request(
-            f"{self._base_url}/prompt/start",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
+    def _send_blocking(self, prompt: str, timeout_ms: int) -> None:
+        """Send prompt and wait for response (blocking)."""
+        if not self._runner or not self._runner.is_running():
+            self.error.emit("Gemini CLI is not running")
+            return
+
         try:
-            with urllib.request.urlopen(start_req, timeout=10) as resp:
-                raw = resp.read().decode("utf-8")
-                payload_json = json.loads(raw)
-                request_id = payload_json.get("requestId")
-                if not request_id:
-                    raise RuntimeError("requestId not returned")
-                self.started.emit(request_id)
+            # Generate a simple request ID
+            request_id = str(uuid.uuid4())[:8]
+            self.started.emit(request_id)
 
-            result = self._poll_result(request_id, timeout_ms)
-            response = PromptResponse(request_id=result.get("requestId"), payload=result)
-            self.response_ready.emit(response)
+            # Send prompt to persistent process
+            timeout_sec = timeout_ms / 1000.0
+            response = self._runner.send_prompt(prompt, timeout=timeout_sec)
+
+            if self._cancelled:
+                return
+
+            if response.success:
+                payload = {
+                    "requestId": request_id,
+                    "success": True,
+                    "response": {"response": response.text},
+                    "elapsed": response.elapsed_ms,
+                }
+            else:
+                payload = {
+                    "requestId": request_id,
+                    "success": False,
+                    "error": response.error,
+                    "elapsed": response.elapsed_ms,
+                }
+
+            result = PromptResponse(request_id=request_id, payload=payload)
+            self.response_ready.emit(result)
+
         except Exception as exc:
             self.error.emit(str(exc))
-
-    def _poll_result(self, request_id: str, timeout_ms: int) -> dict:
-        deadline = time.monotonic() + (timeout_ms / 1000)
-        while time.monotonic() < deadline:
-            result_req = urllib.request.Request(
-                f"{self._base_url}/prompt/result?requestId={request_id}",
-                headers={"Content-Type": "application/json"},
-                method="GET",
-            )
-            try:
-                with urllib.request.urlopen(result_req, timeout=5) as resp:
-                    raw = resp.read().decode("utf-8")
-                    payload_json = json.loads(raw)
-                    if resp.status == 202:
-                        time.sleep(0.5)
-                        continue
-                    return payload_json
-            except urllib.error.HTTPError as exc:
-                if exc.code == 202:
-                    time.sleep(0.5)
-                    continue
-                raise
-        raise TimeoutError("Result polling timed out")
 
     def cancel(self, request_id: str) -> None:
-        payload = json.dumps({"requestId": request_id}).encode("utf-8")
-        req = urllib.request.Request(
-            f"{self._base_url}/cancel",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=5):
-                return
-        except Exception as exc:
-            self.error.emit(str(exc))
+        """Cancel the current request (best effort)."""
+        self._cancelled = True
+        # Note: We can't truly cancel the Gemini CLI mid-response,
+        # but we can ignore the result when it arrives
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -122,7 +110,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(1000, 700)
 
         self._setup_logging(log_mode)
-        self._client = GeminiClient("http://127.0.0.1:9876")
+        self._client = GeminiClient()
         self._client.response_ready.connect(self._on_response)
         self._client.started.connect(self._on_started)
         self._client.error.connect(self._on_error)
@@ -133,12 +121,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self._executor: Optional[OperationExecutor] = None
         self._pending_operations = []
         self._current_request_id: Optional[str] = None
-        self._server_process: Optional[subprocess.Popen[str]] = None
-        self._server_ready = False
+        self._gemini_runner: Optional[GeminiRunner] = None
+        self._runner_ready = False
 
         self._build_ui()
         self._apply_style()
-        self._start_server()
 
     def _build_ui(self) -> None:
         # メニューバー
@@ -540,7 +527,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self._append_output(f"ワークスペースを設定しました: {directory}", "system")
         self._refresh_file_list()
+
+        # Start the persistent Gemini CLI process
+        self._runner_ready = False
         self._update_send_state()
+        self._start_gemini_runner()
 
     def _refresh_file_list(self) -> None:
         self._file_list.clear()
@@ -668,44 +659,62 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self._set_log_level(logging.ERROR)
 
-    def _start_server(self) -> None:
-        if self._server_process and self._server_process.poll() is None:
+    def _start_gemini_runner(self) -> None:
+        """Start the persistent Gemini CLI process."""
+        if not self._workspace_root:
             return
+
+        if self._gemini_runner and self._gemini_runner.is_running():
+            self._gemini_runner.stop()
+
         try:
-            self._append_output("Gemini サーバーを起動しています...", "system")
-            self._server_process = subprocess.Popen(
-                ["node", "server/gemini_server.js"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                text=True,
+            self._append_output("Gemini CLI を起動しています (常駐モード)...", "system")
+            self._gemini_runner = GeminiRunner(
+                working_dir=self._workspace_root,
+                yolo_mode=True
             )
-            self._poll_server_ready()
-        except Exception as exc:
-            self._append_output(f"サーバー起動エラー: {exc}", "error")
 
-    def _poll_server_ready(self) -> None:
-        def _check() -> None:
-            try:
-                req = urllib.request.Request(
-                    "http://127.0.0.1:9876/health",
-                    headers={"Content-Type": "application/json"},
-                    method="GET",
+            def on_output(text: str) -> None:
+                # Log raw output for debugging
+                logging.getLogger(__name__).debug("Gemini output: %s", text.strip())
+
+            # Start in background thread to avoid blocking UI
+            def start_runner() -> None:
+                try:
+                    success = self._gemini_runner.start(on_output=on_output)
+                except Exception as e:
+                    logging.getLogger(__name__).error("Gemini start error: %s", e)
+                    success = False
+                # Use QTimer to update UI from main thread
+                QtCore.QMetaObject.invokeMethod(
+                    self,
+                    "_on_runner_started",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(bool, success)
                 )
-                with urllib.request.urlopen(req, timeout=1) as resp:
-                    if resp.status == 200:
-                        self._server_ready = True
-                        self._append_output("サーバー準備完了", "system")
-                        self._update_send_state()
-                        self._update_status("待機中", True)
-                        return
-            except Exception:
-                pass
-            QtCore.QTimer.singleShot(500, _check)
 
-        QtCore.QTimer.singleShot(500, _check)
+            thread = threading.Thread(target=start_runner, daemon=True)
+            thread.start()
+
+        except Exception as exc:
+            self._append_output(f"Gemini CLI 起動エラー: {exc}", "error")
+
+    @QtCore.Slot(bool)
+    def _on_runner_started(self, success: bool) -> None:
+        """Called when GeminiRunner has finished starting."""
+        if success:
+            self._runner_ready = True
+            self._client.set_runner(self._gemini_runner)
+            self._append_output("Gemini CLI 準備完了 (常駐モード)", "system")
+            self._update_send_state()
+            self._update_status("待機中", True)
+        else:
+            self._runner_ready = False
+            self._append_output("Gemini CLI の起動に失敗しました", "error")
+            self._update_status("エラー", False)
 
     def _update_send_state(self) -> None:
-        ready = self._server_ready and self._workspace_root is not None
+        ready = self._runner_ready and self._workspace_root is not None
         self._send_btn.setEnabled(ready)
 
     def _on_cancel(self) -> None:
@@ -723,6 +732,13 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._on_send()
                 return True
         return super().eventFilter(obj, event)
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        """Clean up when window is closed."""
+        if self._gemini_runner:
+            self._append_output("Gemini CLI を終了しています...", "system")
+            self._gemini_runner.stop()
+        event.accept()
 
 
 def main() -> None:
