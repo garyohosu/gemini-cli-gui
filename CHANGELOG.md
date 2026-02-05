@@ -14,6 +14,9 @@
 - Create detailed implementation guide for response extraction fix in instructions/2026-02-05-fix-clean-response.md (#22).
 - Add instructions/README.md and result/README.md for workflow clarity.
 - Create executable task instruction in instructions/2026-02-05_EXECUTE_THIS.md for Codex.
+- Add response extraction state machine, UI filtering helper, and debug logging in GeminiRunner.
+- Update verification artifacts for clean response extraction in result/2026-02-05_clean-response-fix*.md/.txt.
+- Add task instruction record in instructions/2026-02-05_clean-response-fix-execution.md.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.

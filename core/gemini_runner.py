@@ -6,6 +6,7 @@ Uses pywinpty for pseudo-TTY support on Windows.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -52,6 +53,28 @@ class GeminiRunner:
     # Pattern to detect end of response (prompt ready for next input)
     # Gemini CLI shows various prompts like "> ", "gemini> ", etc.
     PROMPT_PATTERN = re.compile(r'[>›»]\s*$', re.MULTILINE)
+    UI_PATTERNS = [
+        re.compile(r'^[>›»*▀▄═─│┌┐└┘├┤┬┴┼╭╮╰╯╔╗╚╝╠╣╦╩╬═║]+$'),
+        re.compile(r'Waiting for auth', re.IGNORECASE),
+        re.compile(r'Press ESC or CTRL\+C', re.IGNORECASE),
+        re.compile(r'Initializing', re.IGNORECASE),
+        re.compile(r'Connecting to MCP', re.IGNORECASE),
+        re.compile(r'MCP server', re.IGNORECASE),
+        re.compile(r'YOLO mode', re.IGNORECASE),
+        re.compile(r'ctrl \+ y to toggle', re.IGNORECASE),
+        re.compile(r'no sandbox', re.IGNORECASE),
+        re.compile(r'/model', re.IGNORECASE),
+        re.compile(r'/docs', re.IGNORECASE),
+        re.compile(r'Type your message', re.IGNORECASE),
+        re.compile(r'Ready \(', re.IGNORECASE),
+        re.compile(r'Tips for getting started', re.IGNORECASE),
+        re.compile(r'Ask questions', re.IGNORECASE),
+        re.compile(r'Be specific', re.IGNORECASE),
+        re.compile(r'/help for more', re.IGNORECASE),
+        re.compile(r'^\d+\s+\w+\.md\s+files$', re.IGNORECASE),
+        re.compile(r'^\s*[█░]+\s*$'),
+        re.compile(r'^\s*[▀▄]+\s*$'),
+    ]
 
     def start(self, on_output: Optional[Callable[[str], None]] = None) -> bool:
         """Start the Gemini CLI process."""
@@ -280,89 +303,82 @@ class GeminiRunner:
         
         return text
 
+    def _is_ui_line(self, line: str) -> bool:
+        """Return True if the line looks like Gemini CLI UI/banners, not content."""
+        for pattern in self.UI_PATTERNS:
+            if pattern.search(line):
+                return True
+        return False
+
     def _clean_response(self, raw: str, sent_prompt: str) -> str:
         """Clean up the response by removing echoed input, prompts, and ANSI codes."""
+        logging.basicConfig(level=logging.DEBUG, format='%(levelname)s: %(message)s')
+        logger = logging.getLogger(__name__)
+        logger.debug("=== CLEAN RESPONSE START ===")
+        logger.debug("Raw length: %d", len(raw))
+        logger.debug("Sent prompt: %s", sent_prompt)
+
         # First, strip ALL ANSI codes and control characters
         text = self._strip_ansi_codes(raw)
-        
+        logger.debug("After ANSI strip: %d chars", len(text))
+        logger.debug("First 300 chars:\n%s", text[:300])
+
         lines = text.split("\n")
-        cleaned_lines = []
-        skip_echo = True
-        found_content = False
-        skip_ui_section = False
+        prompt = sent_prompt.strip()
+        response_lines: list[str] = []
+        state = "searching"
 
-        # Patterns to skip (UI elements, banners, etc.)
-        skip_patterns = [
-            r'^[>›»*▀▄═─│┌┐└┘]+\s*$',  # Prompt/UI chars only
-            r'^\s*$',  # Empty lines before content
-            r'Waiting for auth',
-            r'Press ESC or CTRL\+C',
-            r'Initializing',
-            r'Connecting to MCP',
-            r'MCP server',
-            r'YOLO mode',
-            r'ctrl \+ y to toggle',
-            r'no sandbox',
-            r'/model',
-            r'/docs',
-            r'Type your message',
-            r'Ready \(',
-            r'Tips for getting started',
-            r'Ask questions',
-            r'Be specific',
-            r'/help for more',
-            r'^\d+\s+\w+\.md\s+files',  # "2 GEMINI.md files"
-            r'^\s*[█░]+\s*$',  # ASCII art blocks
-        ]
+        for i, line in enumerate(lines):
+            stripped = line.strip()
 
-        for line in lines:
-            clean_line = line.strip()
-
-            # Skip the echoed prompt
-            if skip_echo and sent_prompt.strip() in clean_line:
-                skip_echo = False
+            if state == "searching":
+                if prompt and prompt in stripped:
+                    state = "found_prompt"
+                    logger.debug("Found prompt at line %d", i)
                 continue
 
-            # Skip lines matching skip patterns
-            should_skip = False
-            for pattern in skip_patterns:
-                if re.search(pattern, clean_line, re.IGNORECASE):
-                    should_skip = True
+            if state == "found_prompt":
+                if not stripped:
+                    continue
+                if self._is_ui_line(stripped):
+                    logger.debug("Skipping UI line after prompt: %s", stripped[:80])
+                    continue
+                state = "collecting"
+                response_lines.append(line.rstrip())
+                logger.debug("Response starts: %s", stripped[:120])
+                continue
+
+            if state == "collecting":
+                if stripped in [">", "›", "»", "*"] or re.match(r'^[>›»]\s*$', stripped):
+                    logger.debug("Detected prompt at line %d", i)
                     break
-            
-            if should_skip:
-                continue
+                if self._is_ui_line(stripped):
+                    continue
+                response_lines.append(line.rstrip())
 
-            # Skip empty lines at the beginning
-            if not found_content and not clean_line:
-                continue
-
-            # Skip lines that look like paths/directories without actual content
-            # e.g., "C:\temp" alone
-            if re.match(r'^[A-Z]:\\[\w\\-]+$', clean_line):
-                continue
-
-            # If we get here, it's actual content
-            if clean_line:
-                found_content = True
-                
-            cleaned_lines.append(line.rstrip())
-
-        # Remove trailing empty lines
-        while cleaned_lines and not cleaned_lines[-1].strip():
-            cleaned_lines.pop()
-
-        # Remove trailing prompt if present
-        if cleaned_lines:
-            last = cleaned_lines[-1].strip()
-            if re.match(r'^[>›»*]\s*$', last):
-                cleaned_lines.pop()
-
-        result = "\n".join(cleaned_lines).strip()
-        
-        # Final cleanup: remove multiple consecutive blank lines
+        result = "\n".join(response_lines).strip()
         result = re.sub(r'\n\n\n+', '\n\n', result)
-        
+
+        if not result:
+            logger.debug("State machine produced empty result; falling back to loose cleanup")
+            fallback_lines: list[str] = []
+            for line in lines:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                if prompt and prompt in stripped:
+                    continue
+                if self._is_ui_line(stripped):
+                    continue
+                if re.match(r'^[A-Z]:\\[\w\\-]+$', stripped):
+                    continue
+                fallback_lines.append(line.rstrip())
+            result = "\n".join(fallback_lines).strip()
+            result = re.sub(r'\n\n\n+', '\n\n', result)
+
+        logger.debug("Final result: %s", result)
+        logger.debug("=== CLEAN RESPONSE END ===")
+
         return result
 
 
