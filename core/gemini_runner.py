@@ -6,7 +6,9 @@ Uses pywinpty for pseudo-TTY support on Windows.
 
 from __future__ import annotations
 
+import os
 import re
+import shutil
 import threading
 import time
 from dataclasses import dataclass, field
@@ -40,7 +42,7 @@ class GeminiRunner:
     working_dir: Path
     yolo_mode: bool = True
     _pty: Optional[winpty.PTY] = field(default=None, init=False, repr=False)
-    _process: Optional[winpty.PtyProcess] = field(default=None, init=False, repr=False)
+    _spawned: bool = field(default=False, init=False)
     _running: bool = field(default=False, init=False)
     _buffer: str = field(default="", init=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
@@ -49,7 +51,7 @@ class GeminiRunner:
 
     # Pattern to detect end of response (prompt ready for next input)
     # Gemini CLI shows various prompts like "> ", "gemini> ", etc.
-    PROMPT_PATTERN = re.compile(r'\n[>›»] $|\n\x1b\[\d*m[>›»]\x1b\[0m $', re.MULTILINE)
+    PROMPT_PATTERN = re.compile(r'[>›»]\s*$', re.MULTILINE)
 
     def start(self, on_output: Optional[Callable[[str], None]] = None) -> bool:
         """Start the Gemini CLI process."""
@@ -59,16 +61,39 @@ class GeminiRunner:
         self._on_output = on_output
 
         try:
-            # Build command
-            cmd = "gemini"
+            # Find gemini command
+            gemini_path = shutil.which("gemini")
+            if not gemini_path:
+                # Try gemini.cmd on Windows
+                gemini_path = shutil.which("gemini.cmd")
+
+            if not gemini_path:
+                raise FileNotFoundError("gemini command not found in PATH")
+
+            # Build command line arguments
+            cmdline = ""
             if self.yolo_mode:
-                cmd += " -y"
+                cmdline = "-y"
 
             # Create PTY with reasonable size
             self._pty = winpty.PTY(cols=200, rows=50)
 
-            # Spawn process
-            self._process = self._pty.spawn(cmd, cwd=str(self.working_dir))
+            # Spawn process using cmd.exe to handle .cmd files properly
+            # appname: full path to executable
+            # cmdline: arguments
+            # cwd: working directory
+            cmd_exe = os.environ.get("COMSPEC", "cmd.exe")
+            full_cmdline = f'/c "{gemini_path}" {cmdline}'
+
+            self._spawned = self._pty.spawn(
+                appname=cmd_exe,
+                cmdline=full_cmdline,
+                cwd=str(self.working_dir)
+            )
+
+            if not self._spawned:
+                raise RuntimeError("Failed to spawn gemini process")
+
             self._running = True
             self._buffer = ""
 
@@ -77,21 +102,22 @@ class GeminiRunner:
             self._read_thread.start()
 
             # Wait for initial prompt
-            self._wait_for_prompt(timeout=60.0)
+            self._wait_for_prompt(timeout=120.0)
 
             return True
 
         except Exception as e:
             self._running = False
+            self._spawned = False
             if self._on_output:
                 self._on_output(f"[ERROR] Failed to start Gemini CLI: {e}\n")
-            return False
+            raise
 
     def stop(self) -> None:
         """Stop the Gemini CLI process."""
         self._running = False
 
-        if self._process:
+        if self._pty and self._spawned:
             try:
                 # Send exit command
                 self._pty.write("/exit\r\n")
@@ -99,12 +125,7 @@ class GeminiRunner:
             except Exception:
                 pass
 
-            try:
-                self._process.terminate()
-            except Exception:
-                pass
-
-        self._process = None
+        self._spawned = False
         self._pty = None
         self._buffer = ""
 
@@ -136,7 +157,7 @@ class GeminiRunner:
 
             # Send the prompt (add newline to submit)
             # Escape any special characters
-            escaped_prompt = prompt.replace("\\", "\\\\").replace("\r", "").replace("\n", " ")
+            escaped_prompt = prompt.replace("\r", "").replace("\n", " ")
             self._pty.write(escaped_prompt + "\r\n")
 
             # Wait for response (until next prompt appears)
@@ -172,21 +193,26 @@ class GeminiRunner:
 
     def is_running(self) -> bool:
         """Check if the Gemini CLI process is running."""
-        return self._running and self._process is not None
+        return self._running and self._spawned
 
     def _reader_loop(self) -> None:
         """Background thread that reads from PTY."""
         while self._running and self._pty:
             try:
-                data = self._pty.read(timeout=100)  # 100ms timeout
+                # Use non-blocking read
+                data = self._pty.read(blocking=False)
                 if data:
                     with self._lock:
                         self._buffer += data
                     if self._on_output:
                         self._on_output(data)
+                else:
+                    # No data available, sleep briefly
+                    time.sleep(0.05)
             except winpty.WinptyError:
-                # Timeout or closed, continue
-                pass
+                # PTY closed or error
+                if self._running:
+                    time.sleep(0.1)
             except Exception:
                 if self._running:
                     time.sleep(0.1)
@@ -201,29 +227,22 @@ class GeminiRunner:
             with self._lock:
                 current_buffer = self._buffer
 
-            # Check for prompt pattern
-            if self.PROMPT_PATTERN.search(current_buffer):
-                return current_buffer
-
-            # Also check for simple prompt patterns
-            if current_buffer.rstrip().endswith(">") or current_buffer.rstrip().endswith("›"):
+            # Check for prompt pattern at end of buffer
+            stripped = current_buffer.rstrip()
+            if stripped.endswith(">") or stripped.endswith("›") or stripped.endswith("»"):
                 # Wait a bit more to ensure it's stable
                 stable_count += 1
-                if stable_count >= 3:
+                if stable_count >= 5:  # 0.5 seconds of stability
                     return current_buffer
             else:
-                stable_count = 0
-
-            # Check if buffer is growing
-            if len(current_buffer) == last_buffer_len:
-                stable_count += 1
-                if stable_count >= 10:  # 1 second of no output
-                    # Check if we have meaningful content
-                    if len(current_buffer) > 10:
+                # Check if buffer stopped growing (response complete)
+                if len(current_buffer) == last_buffer_len and len(current_buffer) > 0:
+                    stable_count += 1
+                    if stable_count >= 20:  # 2 seconds of no output
                         return current_buffer
-            else:
-                stable_count = 0
-                last_buffer_len = len(current_buffer)
+                else:
+                    stable_count = 0
+                    last_buffer_len = len(current_buffer)
 
             time.sleep(0.1)
 

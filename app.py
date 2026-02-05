@@ -680,7 +680,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
             # Start in background thread to avoid blocking UI
             def start_runner() -> None:
-                success = self._gemini_runner.start(on_output=on_output)
+                try:
+                    success = self._gemini_runner.start(on_output=on_output)
+                except Exception as e:
+                    logging.getLogger(__name__).error("Gemini start error: %s", e)
+                    success = False
                 # Use QTimer to update UI from main thread
                 QtCore.QMetaObject.invokeMethod(
                     self,
