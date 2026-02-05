@@ -12,6 +12,8 @@
 - Add mandatory testing requirements and multi-agent collaboration rules to AGENTS.md.
 - Add verification script scripts/verify_gemini_tty.py for CLI testing (by Local Codex).
 - Create detailed implementation guide for response extraction fix in instructions/2026-02-05-fix-clean-response.md (#22).
+- Add instructions/README.md and result/README.md for workflow clarity.
+- Create executable task instruction in instructions/2026-02-05_EXECUTE_THIS.md for Codex.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
