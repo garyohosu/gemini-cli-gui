@@ -9,6 +9,9 @@
 - Document ANSI escape sequences bug in GeminiRunner output in instructions/2026-02-05-ansi-escape-bug.md.
 - Enhance ANSI stripping in GeminiRunner to handle more UI patterns (#19).
 - Fix ANSI escape sequences bug with comprehensive stripping in GeminiRunner (#19).
+- Add mandatory testing requirements and multi-agent collaboration rules to AGENTS.md.
+- Add verification script scripts/verify_gemini_tty.py for CLI testing (by Local Codex).
+- Create detailed implementation guide for response extraction fix in instructions/2026-02-05-fix-clean-response.md (#22).
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
