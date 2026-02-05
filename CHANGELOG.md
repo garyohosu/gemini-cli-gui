@@ -1,6 +1,13 @@
 # Changelog
 
 ## 2026-02-05
+### [0.2.0] - 2026-02-05
+#### Changed
+- Replaced PTY-based response extraction with file output method
+- Improved reliability: 83.3% success rate in CLI testing
+- Average response time: ~40 seconds
+- Added better error handling for Google rate limits
+- Integrated GeminiFileClient into GUI
 - Add file-output Gemini CLI client, PowerShell runner, and CLI verification script with recorded results.
 - Record task steps in instructions/2026-02-05_task_steps.md.
 - Tag v0.1.0 - Initial release with GUI, Gemini CLI integration, workspace sandbox, and approval workflow.
