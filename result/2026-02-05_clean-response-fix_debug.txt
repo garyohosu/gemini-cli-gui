@@ -1,0 +1,12 @@
+DEBUG: === CLEAN RESPONSE START ===
+DEBUG: Raw length: 50
+DEBUG: Sent prompt: Say hello
+DEBUG: After ANSI strip: 0 chars
+DEBUG: First 300 chars:
+
+DEBUG: State machine produced empty result; falling back to loose cleanup
+DEBUG: Final result: 
+DEBUG: === CLEAN RESPONSE END ===
+[1] elapsed_ms=3011 raw_len=50 ansi_esc=4 clean_len=0 success=True
+[cleaned]
+
