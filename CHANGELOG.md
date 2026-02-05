@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-02-06
+- Verified "Say hello" prompt successfully on `fix/clean-response-extraction` branch.
+- Confirmed Gemini CLI basic operation and response extraction (Elapsed: 46.64s).
+
 ## 2026-02-05
 ### [0.2.0] - 2026-02-05
 #### Changed
