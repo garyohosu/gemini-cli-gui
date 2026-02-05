@@ -1,5 +1,8 @@
 # Changelog
 
+## 2026-02-05
+- Tag v0.1.0 - Initial release with GUI, Gemini CLI integration, workspace sandbox, and approval workflow.
+
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
 - Update `AGENTS.md` to define instruction/result output locations.
