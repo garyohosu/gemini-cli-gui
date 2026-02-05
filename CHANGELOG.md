@@ -8,6 +8,8 @@
 - Implement persistent Gemini CLI process using pywinpty for faster responses (#17).
 - Document ANSI escape sequences bug in GeminiRunner output in instructions/2026-02-05-ansi-escape-bug.md.
 - Enhance ANSI stripping in GeminiRunner to handle more UI patterns (#19).
+- Add mandatory testing requirements to AGENTS.md (AI must test before user).
+- Document empty response issue after revert in instructions/2026-02-05-empty-response-issue.md.
 - Fix ANSI escape sequences bug with comprehensive stripping in GeminiRunner (#19).
 
 ## 2026-02-03
