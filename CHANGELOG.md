@@ -13,6 +13,7 @@
 - Add git conflict resolution guide for Codex (HOW_TO_HANDLE_GIT_CONFLICTS.md).
 - Add detailed CLI verification workflow guide (2026-02-05_CLI_VERIFICATION_FIRST.md).
 - Add pyte terminal emulator fix guide (2026-02-05_FIX_WITH_PYTE.md) - solution for clean_len=0 issue.
+- Add simplified execution guide for pyte fix (EXECUTE_PYTE_FIX.md) with inline instructions.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
