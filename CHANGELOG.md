@@ -9,6 +9,9 @@
 - Document ANSI escape sequences bug in GeminiRunner output in instructions/2026-02-05-ansi-escape-bug.md.
 - Enhance ANSI stripping in GeminiRunner to handle more UI patterns (#19).
 - Fix ANSI escape sequences bug with comprehensive stripping in GeminiRunner (#19).
+- Add CLI verification workflow requirement to AGENTS.md - test with CLI before GUI integration.
+- Add git conflict resolution guide for Codex (HOW_TO_HANDLE_GIT_CONFLICTS.md).
+- Add detailed CLI verification workflow guide (2026-02-05_CLI_VERIFICATION_FIRST.md).
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
