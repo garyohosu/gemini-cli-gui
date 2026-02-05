@@ -21,7 +21,7 @@ from core.operations_parser import OperationParseError, parse_operations
 from core.workspace_sandbox import WorkspaceSandbox
 
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 
 class MainWindow(QtWidgets.QMainWindow):
