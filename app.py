@@ -143,7 +143,10 @@ class MainWindow(QtWidgets.QMainWindow):
     def _build_ui(self) -> None:
         # メニューバー
         menubar = self.menuBar()
-        menubar.addMenu("ファイル(&F)")
+        file_menu = menubar.addMenu("ファイル(&F)")
+        exit_action = file_menu.addAction("終了(&X)")
+        exit_action.setShortcut("Alt+F4")
+        exit_action.triggered.connect(self.close)
         menubar.addMenu("編集(&E)")
         menubar.addMenu("表示(&V)")
         menubar.addMenu("ウィンドウ(&W)")
