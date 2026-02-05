@@ -28,6 +28,7 @@
 - Record pyte fix run results in result/2026-02-05_execute-pyte-fix.md and result/2026-02-05_pyte_fix_verification.md.
 - Record pull/execute attempt for missing FIX_WITH_PYTE instruction in instructions/2026-02-05_pull-and-fix-with-pyte.md and result/2026-02-05_pull-and-fix-with-pyte.md.
 - Record reset/pull/execute task instructions in instructions/2026-02-05_reset-and-execute-pyte.md.
+- Record manual Gemini CLI check instructions and results in instructions/2026-02-05_manual-gemini-cli-check.md and result/2026-02-05_manual-gemini-cli-check.md.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
