@@ -6,6 +6,7 @@
 - Fix HTTP 400 error when selecting workspace different from server CWD (#14).
 - Add Exit menu item to File menu (#16).
 - Implement persistent Gemini CLI process using pywinpty for faster responses (#17).
+- Document ANSI escape sequences bug in GeminiRunner output in instructions/2026-02-05-ansi-escape-bug.md.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
