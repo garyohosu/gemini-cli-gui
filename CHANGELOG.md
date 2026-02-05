@@ -10,13 +10,24 @@
 - Enhance ANSI stripping in GeminiRunner to handle more UI patterns (#19).
 - Fix ANSI escape sequences bug with comprehensive stripping in GeminiRunner (#19).
 - Add mandatory testing requirements and multi-agent collaboration rules to AGENTS.md.
+- Add CLI verification workflow requirement to AGENTS.md - test with CLI before GUI integration.
+- Add git conflict resolution guide for Codex (HOW_TO_HANDLE_GIT_CONFLICTS.md).
+- Add detailed CLI verification workflow guide (2026-02-05_CLI_VERIFICATION_FIRST.md).
 - Add verification script scripts/verify_gemini_tty.py for CLI testing (by Local Codex).
 - Create detailed implementation guide for response extraction fix in instructions/2026-02-05-fix-clean-response.md (#22).
 - Add instructions/README.md and result/README.md for workflow clarity.
 - Create executable task instruction in instructions/2026-02-05_EXECUTE_THIS.md for Codex.
+- Add pyte terminal emulator fix guide (2026-02-05_FIX_WITH_PYTE.md) - solution for clean_len=0 issue.
+- Add simplified execution guide for pyte fix (EXECUTE_PYTE_FIX.md) with inline instructions.
 - Add response extraction state machine, UI filtering helper, and debug logging in GeminiRunner.
 - Update verification artifacts for clean response extraction in result/2026-02-05_clean-response-fix*.md/.txt.
 - Add task instruction record in instructions/2026-02-05_clean-response-fix-execution.md.
+- Add pyte dependency to requirements.txt for terminal emulation.
+- Update GeminiRunner to use pyte screen restoration for response extraction.
+- Record pyte fix execution summary in instructions/2026-02-05_execute-pyte-fix.md.
+- Record pyte fix run results in result/2026-02-05_execute-pyte-fix.md and result/2026-02-05_pyte_fix_verification.md.
+- Record pull/execute attempt for missing FIX_WITH_PYTE instruction in instructions/2026-02-05_pull-and-fix-with-pyte.md and result/2026-02-05_pull-and-fix-with-pyte.md.
+- Record reset/pull/execute task instructions in instructions/2026-02-05_reset-and-execute-pyte.md.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
