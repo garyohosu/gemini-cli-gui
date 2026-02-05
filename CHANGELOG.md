@@ -5,6 +5,7 @@
 - Document workspace validation bug (HTTP 400) in instructions/2026-02-05-workspace-validation-bug.md.
 - Fix HTTP 400 error when selecting workspace different from server CWD (#14).
 - Add Exit menu item to File menu (#16).
+- Document performance degradation (2-minute response time) in instructions/2026-02-05-slow-response-investigation.md.
 
 ## 2026-02-03
 - Add agent guidance files and direct tools to `AGENTS.md`.
