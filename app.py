@@ -519,7 +519,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         def run_request() -> None:
             start_time = time.time()
-            response = self.gemini_client.send_prompt(user_message, timeout=180)
+            # Pass workspace directory to Gemini CLI
+            workspace = str(self._workspace_root) if self._workspace_root else None
+            response = self.gemini_client.send_prompt(
+                user_message, 
+                timeout=180,
+                workspace_dir=workspace
+            )
             if not response.elapsed_seconds:
                 response.elapsed_seconds = time.time() - start_time
             QtCore.QTimer.singleShot(
