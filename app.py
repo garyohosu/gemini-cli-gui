@@ -496,7 +496,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_send(self) -> None:
         if not self._workspace_root:
-            self._append_output("??????????????????????????????", "error")
+            self._append_output("ワークスペースが選択されていません", "error")
             return
         self._send_message_impl()
 
@@ -513,13 +513,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self._input.setEnabled(False)
         self._send_btn.setEnabled(False)
         self._cancel_btn.setEnabled(False)
-        self._update_status("??????", True)
+        self._update_status("実行中", True)
 
         loading_block = self._add_message("Thinking...", is_user=False)
 
         def run_request() -> None:
             start_time = time.time()
-            response = self.gemini_client.send_prompt(user_message, timeout=180)
+            # Pass workspace directory to Gemini CLI
+            workspace = str(self._workspace_root) if self._workspace_root else None
+            response = self.gemini_client.send_prompt(
+                user_message, 
+                timeout=180,
+                workspace_dir=workspace
+            )
             if not response.elapsed_seconds:
                 response.elapsed_seconds = time.time() - start_time
             QtCore.QTimer.singleShot(
@@ -547,7 +553,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._input.setEnabled(True)
         self._send_btn.setEnabled(True)
         self._input.setFocus()
-        self._update_status("??????", False)
+        self._update_status("待機中", False)
 
     def _load_operations(self, payload: dict) -> None:
         self._pending_operations = []
@@ -608,28 +614,28 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self._workspace_root:
             return
         self._runner_ready = True
-        self._append_output("Gemini CLI ?????????????????????? (file output)", "system")
+        self._append_output("Gemini CLI 準備完了 (file output)", "system")
         self._update_send_state()
-        self._update_status("??????", True)
+        self._update_status("待機中", True)
 
     @QtCore.Slot(bool)
     def _on_runner_started(self, success: bool) -> None:
         """Legacy hook for runner startup (unused for file output)."""
         self._runner_ready = bool(success)
         if success:
-            self._append_output("Gemini CLI ???????(file output)", "system")
+            self._append_output("Gemini CLI 準備完了(file output)", "system")
             self._update_send_state()
-            self._update_status("??????", True)
+            self._update_status("待機中", True)
         else:
-            self._append_output("Gemini CLI ?????????????????", "error")
-            self._update_status("??????", False)
+            self._append_output("Gemini CLI 起動失敗", "error")
+            self._update_status("エラー", False)
 
     def _update_send_state(self) -> None:
         ready = self._workspace_root is not None
         self._send_btn.setEnabled(ready)
 
     def _on_cancel(self) -> None:
-        self._append_output("?????????? file output ???????????????", "info")
+        self._append_output("中断は現在 file output モードではサポートされていません", "info")
         self._cancel_btn.setEnabled(False)
 
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
@@ -643,8 +649,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         """Clean up when window is closed."""
         event.accept()
-
-
 
 
 def main() -> None:
