@@ -1,8 +1,17 @@
 # Changelog
 
 ## 2026-02-06
-- Verified "Say hello" prompt successfully on `fix/clean-response-extraction` branch.
-- Confirmed Gemini CLI basic operation and response extraction (Elapsed: 46.64s).
+- Verified "What is 2+2?" prompt successfully (Result: 4).
+- Confirmed Gemini CLI performance for mathematical queries (Elapsed: 52.08s).
+- Latest verification result documented in `result/2026-02-06_math_verification.md`.
+- Verified "Say hello" prompt successfully.
+- Confirmed Gemini CLI basic operation and response extraction (Elapsed: 44.27s).
+- Latest verification result documented in `result/2026-02-06_hello_verification.md`.
+- Applied additional fixes to `core/gemini_runner.py`:
+    - Fixed `_dump_screen_text` to correctly extract text from `pyte` buffer.
+    - Improved `_wait_for_prompt` robustness during startup.
+    - Implemented improved state machine for response extraction.
+    - Refined UI patterns for better filtering.
 
 ## 2026-02-05
 ### [0.2.0] - 2026-02-05

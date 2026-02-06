@@ -11,6 +11,7 @@ import re
 import shutil
 import threading
 import time
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
@@ -56,9 +57,9 @@ class GeminiRunner:
     # Pattern to detect end of response (prompt ready for next input)
     # Gemini CLI shows various prompts like "> ", "gemini> ", etc.
     PROMPT_PATTERN = re.compile(r'[>›»]\s*$', re.MULTILINE)
+    
     UI_PATTERNS = [
-        re.compile(r'^[>›»*▀▄═─│┌┐└┘├┤┬┴┼╭╮╰╯╔╗╚╝╠╣╦╩╬═║]+\s*$'),
-        re.compile(r'^\s*$', re.IGNORECASE),
+        re.compile(r'^[>›»*▀▄═─│┌┐└┘├┤┬┴┼╭╮╰╯╔╗╚╝╠╣╦╩╬═║\s█░]+$'),
         re.compile(r'Waiting for auth', re.IGNORECASE),
         re.compile(r'Press ESC or CTRL\+C', re.IGNORECASE),
         re.compile(r'Initializing', re.IGNORECASE),
@@ -76,8 +77,6 @@ class GeminiRunner:
         re.compile(r'Be specific', re.IGNORECASE),
         re.compile(r'/help for more', re.IGNORECASE),
         re.compile(r'^\d+\s+\w+\.md\s+files', re.IGNORECASE),
-        re.compile(r'^\s*[█░]+\s*$'),
-        re.compile(r'^\s*[▀▄]+\s*$'),
     ]
 
     def start(self, on_output: Optional[Callable[[str], None]] = None) -> bool:
@@ -115,9 +114,6 @@ class GeminiRunner:
                 self._stream = pyte.Stream(self._screen)
 
             # Spawn process using cmd.exe to handle .cmd files properly
-            # appname: full path to executable
-            # cmdline: arguments
-            # cwd: working directory
             cmd_exe = os.environ.get("COMSPEC", "cmd.exe")
             full_cmdline = f'/c "{gemini_path}" {cmdline}'
 
@@ -137,8 +133,8 @@ class GeminiRunner:
             self._read_thread = threading.Thread(target=self._reader_loop, daemon=True)
             self._read_thread.start()
 
-            # Wait for initial prompt
-            self._wait_for_prompt(timeout=120.0)
+            # Wait for initial prompt (must be patient during startup)
+            self._wait_for_prompt(timeout=120.0, require_prompt=True)
 
             return True
 
@@ -194,7 +190,6 @@ class GeminiRunner:
                     self._screen.reset()
 
             # Send the prompt (add newline to submit)
-            # Escape any special characters
             escaped_prompt = prompt.replace("\n", "\\n")
             self._pty.write(f"{escaped_prompt}\n")
 
@@ -258,11 +253,12 @@ class GeminiRunner:
                 if self._running:
                     time.sleep(0.1)
 
-    def _wait_for_prompt(self, timeout: float) -> str:
+    def _wait_for_prompt(self, timeout: float, require_prompt: bool = False) -> str:
         """Wait until the prompt appears, indicating response is complete."""
         deadline = time.monotonic() + timeout
         last_buffer_len = 0
         stable_count = 0
+        start_time = time.monotonic()
 
         while time.monotonic() < deadline:
             with self._lock:
@@ -270,177 +266,160 @@ class GeminiRunner:
 
             # Check for prompt pattern at end of buffer
             stripped = current_buffer.rstrip()
-            if stripped.endswith(">") or stripped.endswith("›") or stripped.endswith("»"):
+            
+            # Simple check for prompt characters at the end
+            if stripped.endswith(">") or stripped.endswith("›") or stripped.endswith("»") or stripped.endswith("*"):
                 # Wait a bit more to ensure it's stable
                 stable_count += 1
                 if stable_count >= 5:  # 0.5 seconds of stability
                     return current_buffer
             else:
-                # Check if buffer stopped growing (response complete)
-                if len(current_buffer) == last_buffer_len and len(current_buffer) > 0:
-                    stable_count += 1
-                    if stable_count >= 20:  # 2 seconds of no output
-                        return current_buffer
-                else:
-                    stable_count = 0
-                    last_buffer_len = len(current_buffer)
+                # During initial startup, we MUST wait for a prompt character.
+                # During normal prompts, we can fall back to stability after a while.
+                elapsed = time.monotonic() - start_time
+                if not require_prompt or elapsed > 10.0:
+                    # Check if buffer stopped growing (response complete)
+                    if len(current_buffer) == last_buffer_len and len(current_buffer) > 0:
+                        stable_count += 1
+                        # Wait longer for stability if we haven't seen a prompt
+                        if stable_count >= 30:  # 3 seconds of no output
+                            return current_buffer
+                    else:
+                        stable_count = 0
+                        last_buffer_len = len(current_buffer)
 
             time.sleep(0.1)
 
         raise TimeoutError("Timed out waiting for prompt")
 
     def _strip_ansi_codes(self, text: str) -> str:
-        """
-        Comprehensively remove ANSI escape sequences and control characters.
-        
-        This handles:
-        - CSI sequences (colors, cursor movement, etc.)
-        - OSC sequences (window title, etc.)
-        - Other escape sequences
-        - Control characters (except newline, carriage return, tab)
-        """
+        """Comprehensively remove ANSI escape sequences and control characters."""
         # Remove CSI sequences: ESC [ ... letter
         text = re.sub(r'\x1B\[[0-?]*[ -/]*[@-~]', '', text)
-        
         # Remove OSC sequences: ESC ] ... (terminated by BEL or ESC \)
         text = re.sub(r'\x1B\].*?(?:\x07|\x1B\\)', '', text)
-        
-        # Remove other ESC sequences: ESC letter or ESC # letter
+        # Remove other ESC sequences
         text = re.sub(r'\x1B[@-Z\\-_]', '', text)
         text = re.sub(r'\x1B#[0-9]', '', text)
-        
         # Remove control characters except \n, \r, \t
         text = re.sub(r'[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F-\x9F]', '', text)
-        
-        # Remove common box drawing and special characters that appear in UI
-        # (These are usually part of the Gemini CLI UI, not actual content)
+        # Remove common box drawing characters
         text = re.sub(r'[─│┌┐└┘├┤┬┴┼╭╮╰╯╔╗╚╝╠╣╦╩╬═║]', '', text)
-        
         # Remove spinner characters
         text = re.sub(r'[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]', '', text)
-        
         return text
 
     def _is_ui_line(self, line: str) -> bool:
         """Return True if the line looks like Gemini CLI UI/banners, not content."""
+        if not line.strip():
+            return False
         for pattern in self.UI_PATTERNS:
             if pattern.search(line):
                 return True
         return False
 
     def _dump_screen_text(self) -> str:
-        """
-        Dump current screen content as text.
-        Returns the visible screen + scrollback history.
-        """
+        """Dump current screen content as text from pyte buffer."""
         if not self._screen:
             return ""
 
         def _line_to_text(line) -> str:
             if isinstance(line, str):
                 return line.rstrip()
+            
             chars = []
-            for char in line:
-                if hasattr(char, "data"):
-                    chars.append(char.data)
-                elif isinstance(char, int):
-                    chars.append(chr(char))
-                else:
-                    chars.append(str(char))
+            if isinstance(line, dict):
+                # pyte 0.8.0+ buffer line
+                for x in range(self._screen.columns):
+                    char = line.get(x)
+                    chars.append(char.data if char else " ")
+            else:
+                # list of Char (history)
+                for char in line:
+                    chars.append(char.data if hasattr(char, "data") else str(char))
+            
             return "".join(chars).rstrip()
 
         with self._lock:
             lines = []
-
-            # Get scrollback history
+            # Scrollback
             for line in self._screen.history.top:
                 lines.append(_line_to_text(line))
-
-            # Get current screen
+            # Visible screen
             for y in range(self._screen.lines):
                 line_data = self._screen.buffer.get(y)
-                if not line_data:
-                    lines.append("")
-                    continue
-                lines.append(_line_to_text(line_data))
-
+                lines.append(_line_to_text(line_data) if line_data else "")
             return "\n".join(lines)
 
     def _clean_response(self, raw: str, sent_prompt: str) -> str:
-        """
-        Clean response by removing echoed input and prompts.
-        Now works with screen dump instead of raw PTY output.
-        """
+        """Clean up response using a state machine to extract actual content."""
         if not raw:
             return ""
 
-        # First, strip ALL ANSI codes and control characters
+        # Strip ANSI codes first
         text = self._strip_ansi_codes(raw)
-
         lines = text.split("\n")
-
-        # State machine: skip until we find the prompt, then collect
-        state = "looking_for_prompt"
-        collected: list[str] = []
-
-        for line in lines:
+        
+        # State machine
+        state = "searching"  # searching -> found_prompt -> collecting -> done
+        response_lines = []
+        
+        logging.debug(f"=== _clean_response start (raw len: {len(raw)}) ===")
+        
+        for i, line in enumerate(lines):
             stripped = line.strip()
-
-            if state == "looking_for_prompt":
+            
+            if state == "searching":
+                # Find echoed prompt
+                if sent_prompt.strip() in stripped:
+                    state = "found_prompt"
+                    logging.debug(f"Line {i}: Found prompt: {stripped[:50]}")
+                    continue
+            
+            elif state == "found_prompt":
+                # Skip empty lines immediately after prompt
+                if not stripped:
+                    continue
                 # Skip UI lines
                 if self._is_ui_line(stripped):
                     continue
-                # Found the sent prompt
-                if sent_prompt in line:
-                    state = "collecting"
-                    continue
-
+                # This is the start of actual response!
+                state = "collecting"
+                response_lines.append(line.rstrip())
+                logging.debug(f"Line {i}: Response starts: {stripped[:50]}")
+            
             elif state == "collecting":
-                # Skip UI lines
+                # Stop at next prompt symbol on a line by itself
+                if stripped in ['>', '›', '»', '*']:
+                    state = "done"
+                    logging.debug(f"Line {i}: Found next prompt, stopping.")
+                    break
+                # Skip UI lines within response
                 if self._is_ui_line(stripped):
                     continue
-                # Stop at next prompt
-                if stripped and stripped[0] in (">", "›", "»", "*"):
-                    break
-                # Collect non-empty lines
-                if stripped:
-                    collected.append(stripped)
-
-        # Fallback: prompt not found
-        if not collected:
-            for i in range(len(lines) - 1, -1, -1):
-                line = lines[i].strip()
-                if line and line[0] in (">", "›", "»", "*"):
-                    for j in range(i - 1, -1, -1):
-                        prev_line = lines[j].strip()
-                        if prev_line and not self._is_ui_line(prev_line):
-                            collected.insert(0, prev_line)
-                        elif prev_line == "":
-                            break
-                    break
-
-        # Final fallback: return non-UI lines
-        if not collected:
+                # Collect response line
+                response_lines.append(line.rstrip())
+        
+        # Fallback: if nothing collected, return all non-UI, non-prompt lines
+        if not response_lines:
+            logging.debug("Fallback: No lines collected by state machine")
             for line in lines:
                 stripped = line.strip()
-                if stripped and not self._is_ui_line(stripped):
-                    collected.append(stripped)
-
-        result = "\n".join(collected).strip()
-
-        # Final cleanup: remove multiple consecutive blank lines
+                if stripped and not self._is_ui_line(stripped) and sent_prompt.strip() not in stripped:
+                    response_lines.append(line.rstrip())
+        
+        result = "\n".join(response_lines).strip()
         result = re.sub(r'\n\n\n+', '\n\n', result)
+        logging.debug(f"Extracted {len(result)} chars")
         return result
 
 
 # Singleton instance for app-wide use
 _runner_instance: Optional[GeminiRunner] = None
 
-
 def get_runner() -> Optional[GeminiRunner]:
     """Get the global GeminiRunner instance."""
     return _runner_instance
-
 
 def create_runner(working_dir: Path, yolo_mode: bool = True) -> GeminiRunner:
     """Create and set the global GeminiRunner instance."""
@@ -449,7 +428,6 @@ def create_runner(working_dir: Path, yolo_mode: bool = True) -> GeminiRunner:
         _runner_instance.stop()
     _runner_instance = GeminiRunner(working_dir=working_dir, yolo_mode=yolo_mode)
     return _runner_instance
-
 
 def stop_runner() -> None:
     """Stop the global GeminiRunner instance."""
