@@ -6,8 +6,8 @@ import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import threading
+import time
 import uuid
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -15,92 +15,13 @@ from typing import Optional
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from core.audit_log import AuditLog
-from core.gemini_runner import GeminiRunner, GeminiResponse
+from core.gemini_file_client import GeminiFileClient, GeminiResponse
 from core.operation_executor import OperationExecutor
 from core.operations_parser import OperationParseError, parse_operations
 from core.workspace_sandbox import WorkspaceSandbox
 
 
 VERSION = "0.1.0"
-
-
-@dataclass
-class PromptResponse:
-    request_id: Optional[str]
-    payload: dict
-
-
-class GeminiClient(QtCore.QObject):
-    """Client for communicating with Gemini CLI via persistent process."""
-    response_ready = QtCore.Signal(object)
-    started = QtCore.Signal(str)
-    error = QtCore.Signal(str)
-    output_received = QtCore.Signal(str)
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._runner: Optional[GeminiRunner] = None
-        self._current_thread: Optional[threading.Thread] = None
-        self._cancelled = False
-
-    def set_runner(self, runner: GeminiRunner) -> None:
-        """Set the GeminiRunner instance."""
-        self._runner = runner
-
-    def send_prompt(self, prompt: str, timeout_ms: int, working_dir: Optional[str]) -> None:
-        """Send a prompt asynchronously."""
-        self._cancelled = False
-        self._current_thread = threading.Thread(
-            target=self._send_blocking,
-            args=(prompt, timeout_ms),
-            daemon=True,
-        )
-        self._current_thread.start()
-
-    def _send_blocking(self, prompt: str, timeout_ms: int) -> None:
-        """Send prompt and wait for response (blocking)."""
-        if not self._runner or not self._runner.is_running():
-            self.error.emit("Gemini CLI is not running")
-            return
-
-        try:
-            # Generate a simple request ID
-            request_id = str(uuid.uuid4())[:8]
-            self.started.emit(request_id)
-
-            # Send prompt to persistent process
-            timeout_sec = timeout_ms / 1000.0
-            response = self._runner.send_prompt(prompt, timeout=timeout_sec)
-
-            if self._cancelled:
-                return
-
-            if response.success:
-                payload = {
-                    "requestId": request_id,
-                    "success": True,
-                    "response": {"response": response.text},
-                    "elapsed": response.elapsed_ms,
-                }
-            else:
-                payload = {
-                    "requestId": request_id,
-                    "success": False,
-                    "error": response.error,
-                    "elapsed": response.elapsed_ms,
-                }
-
-            result = PromptResponse(request_id=request_id, payload=payload)
-            self.response_ready.emit(result)
-
-        except Exception as exc:
-            self.error.emit(str(exc))
-
-    def cancel(self, request_id: str) -> None:
-        """Cancel the current request (best effort)."""
-        self._cancelled = True
-        # Note: We can't truly cancel the Gemini CLI mid-response,
-        # but we can ignore the result when it arrives
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -110,10 +31,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(1000, 700)
 
         self._setup_logging(log_mode)
-        self._client = GeminiClient()
-        self._client.response_ready.connect(self._on_response)
-        self._client.started.connect(self._on_started)
-        self._client.error.connect(self._on_error)
+        self.gemini_client = GeminiFileClient()
 
         self._workspace_root: Optional[Path] = None
         self._sandbox: Optional[WorkspaceSandbox] = None
@@ -121,7 +39,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._executor: Optional[OperationExecutor] = None
         self._pending_operations = []
         self._current_request_id: Optional[str] = None
-        self._gemini_runner: Optional[GeminiRunner] = None
         self._runner_ready = False
 
         self._build_ui()
@@ -504,6 +421,21 @@ class MainWindow(QtWidgets.QMainWindow):
         self._output.setTextCursor(cursor)
         self._output.ensureCursorVisible()
 
+    def _add_message(self, message: str, is_user: bool) -> int:
+        msg_type = "user" if is_user else "system"
+        self._append_output(message, msg_type)
+        return self._output.document().lastBlock().blockNumber()
+
+    def _remove_message(self, block_number: int) -> None:
+        doc = self._output.document()
+        block = doc.findBlockByNumber(block_number)
+        if not block.isValid():
+            return
+        cursor = QtGui.QTextCursor(block)
+        cursor.select(QtGui.QTextCursor.BlockUnderCursor)
+        cursor.removeSelectedText()
+        cursor.deleteChar()
+
     def _update_status(self, text: str, running: bool) -> None:
         indicator = "●" if running else "●"
         color = "#4ade80" if running else "#9ca3af"
@@ -563,47 +495,59 @@ class MainWindow(QtWidgets.QMainWindow):
         self._append_welcome_message()
 
     def _on_send(self) -> None:
-        prompt = self._input.toPlainText().strip()
-        if not prompt:
-            return
-
         if not self._workspace_root:
-            self._append_output("先にワークスペースを選択してください", "error")
+            self._append_output("??????????????????????????????", "error")
+            return
+        self._send_message_impl()
+
+    def _send_message_impl(self) -> None:
+        """Send message to Gemini using file output method."""
+        user_message = self._input.toPlainText().strip()
+
+        if not user_message:
             return
 
-        self._append_output(prompt, "user")
+        self._add_message(user_message, is_user=True)
         self._input.clear()
+
+        self._input.setEnabled(False)
         self._send_btn.setEnabled(False)
-        self._cancel_btn.setEnabled(True)
-        self._update_status("実行中", True)
-        self._current_request_id = None
-        working_dir = str(self._workspace_root) if self._workspace_root else None
-        self._client.send_prompt(prompt, timeout_ms=300000, working_dir=working_dir)
-
-    def _on_response(self, response: PromptResponse) -> None:
-        payload = response.payload
-        text = payload.get("response", {}).get("response")
-        if not text:
-            text = json.dumps(payload, ensure_ascii=False, indent=2)
-
-        self._append_output(text, "system")
-        self._update_send_state()
         self._cancel_btn.setEnabled(False)
-        self._update_status("停止中", False)
-        self._current_request_id = None
-        self._load_operations(payload)
+        self._update_status("??????", True)
 
-    def _on_started(self, request_id: str) -> None:
-        self._current_request_id = request_id
-        self._append_output(f"Gemini が応答中です... (requestId={request_id})", "system")
-        self._update_status("実行中", True)
+        loading_block = self._add_message("Thinking...", is_user=False)
 
-    def _on_error(self, message: str) -> None:
-        self._append_output(f"エラー: {message}", "error")
-        self._update_send_state()
-        self._cancel_btn.setEnabled(False)
-        self._update_status("停止中", False)
-        logging.getLogger(__name__).error("GUI error: %s", message)
+        def run_request() -> None:
+            start_time = time.time()
+            response = self.gemini_client.send_prompt(user_message, timeout=180)
+            if not response.elapsed_seconds:
+                response.elapsed_seconds = time.time() - start_time
+            QtCore.QTimer.singleShot(
+                0,
+                lambda: self._on_file_response(response, loading_block),
+            )
+
+        thread = threading.Thread(target=run_request, daemon=True)
+        thread.start()
+
+    def _on_file_response(self, response: "GeminiResponse", loading_block: int) -> None:
+        self._remove_message(loading_block)
+
+        if response.success:
+            self._add_message(response.response_text, is_user=False)
+        else:
+            error_msg = f"Error: {response.error}"
+            error_msg += "\n\n"
+            if "capacity" in response.error.lower():
+                error_msg += "Gemini is busy. Please try again in a few moments."
+            else:
+                error_msg += "Please try again."
+            self._add_message(error_msg, is_user=False)
+
+        self._input.setEnabled(True)
+        self._send_btn.setEnabled(True)
+        self._input.setFocus()
+        self._update_status("??????", False)
 
     def _load_operations(self, payload: dict) -> None:
         self._pending_operations = []
@@ -660,69 +604,32 @@ class MainWindow(QtWidgets.QMainWindow):
             self._set_log_level(logging.ERROR)
 
     def _start_gemini_runner(self) -> None:
-        """Start the persistent Gemini CLI process."""
+        """Initialize file-output Gemini client (no persistent process)."""
         if not self._workspace_root:
             return
-
-        if self._gemini_runner and self._gemini_runner.is_running():
-            self._gemini_runner.stop()
-
-        try:
-            self._append_output("Gemini CLI を起動しています (常駐モード)...", "system")
-            self._gemini_runner = GeminiRunner(
-                working_dir=self._workspace_root,
-                yolo_mode=True
-            )
-
-            def on_output(text: str) -> None:
-                # Log raw output for debugging
-                logging.getLogger(__name__).debug("Gemini output: %s", text.strip())
-
-            # Start in background thread to avoid blocking UI
-            def start_runner() -> None:
-                try:
-                    success = self._gemini_runner.start(on_output=on_output)
-                except Exception as e:
-                    logging.getLogger(__name__).error("Gemini start error: %s", e)
-                    success = False
-                # Use QTimer to update UI from main thread
-                QtCore.QMetaObject.invokeMethod(
-                    self,
-                    "_on_runner_started",
-                    QtCore.Qt.QueuedConnection,
-                    QtCore.Q_ARG(bool, success)
-                )
-
-            thread = threading.Thread(target=start_runner, daemon=True)
-            thread.start()
-
-        except Exception as exc:
-            self._append_output(f"Gemini CLI 起動エラー: {exc}", "error")
+        self._runner_ready = True
+        self._append_output("Gemini CLI ?????????????????????? (file output)", "system")
+        self._update_send_state()
+        self._update_status("??????", True)
 
     @QtCore.Slot(bool)
     def _on_runner_started(self, success: bool) -> None:
-        """Called when GeminiRunner has finished starting."""
+        """Legacy hook for runner startup (unused for file output)."""
+        self._runner_ready = bool(success)
         if success:
-            self._runner_ready = True
-            self._client.set_runner(self._gemini_runner)
-            self._append_output("Gemini CLI 準備完了 (常駐モード)", "system")
+            self._append_output("Gemini CLI ???????(file output)", "system")
             self._update_send_state()
-            self._update_status("待機中", True)
+            self._update_status("??????", True)
         else:
-            self._runner_ready = False
-            self._append_output("Gemini CLI の起動に失敗しました", "error")
-            self._update_status("エラー", False)
+            self._append_output("Gemini CLI ?????????????????", "error")
+            self._update_status("??????", False)
 
     def _update_send_state(self) -> None:
-        ready = self._runner_ready and self._workspace_root is not None
+        ready = self._workspace_root is not None
         self._send_btn.setEnabled(ready)
 
     def _on_cancel(self) -> None:
-        if not self._current_request_id:
-            self._append_output("中断する処理がありません", "info")
-            return
-        self._append_output("処理を中断します...", "system")
-        self._client.cancel(self._current_request_id)
+        self._append_output("?????????? file output ???????????????", "info")
         self._cancel_btn.setEnabled(False)
 
     def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
@@ -735,10 +642,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         """Clean up when window is closed."""
-        if self._gemini_runner:
-            self._append_output("Gemini CLI を終了しています...", "system")
-            self._gemini_runner.stop()
         event.accept()
+
+
 
 
 def main() -> None:
