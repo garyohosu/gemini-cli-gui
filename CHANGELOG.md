@@ -12,6 +12,8 @@
     - Improved `_wait_for_prompt` robustness during startup.
     - Implemented improved state machine for response extraction.
     - Refined UI patterns for better filtering.
+- Integrated workspace directory support into `GeminiFileClient` and `run_gemini_to_file.ps1`.
+- Resolved merge conflicts and consolidated changes into `main`.
 
 ## 2026-02-05
 ### [0.2.0] - 2026-02-05
